@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0f172a">
+  <title>Трекер малышки Pro</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #f472b6;
+      --accent-soft: rgba(244, 114, 182, 0.15);
+      --mint: #34d399;
+      --mint-soft: rgba(52, 211, 153, 0.15);
+      --border: #334155;
+      --danger: #fb7185;
+    }
+    [data-theme="light"] {
+      --bg: #fdf2f8;
+      --card: #ffffff;
+      --text: #1e293b;
+      --muted: #64748b;
+      --accent: #db2777;
+      --accent-soft: #fce7f3;
+      --mint: #059669;
+      --mint-soft: #d1fae5;
+      --border: #e2e8f0;
+      --danger: #e11d48;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 12px;
+      padding-bottom: 110px;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    button, .chip, select, input { touch-action: manipulation; user-select: none; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      padding: 4px;
+    }
+    .title-wrap h1 { font-size: 1.25rem; font-weight: 800; }
+    .age-badge { font-size: 0.8rem; color: var(--accent); font-weight: 600; margin-top: 2px; }
+    .theme-btn {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      font-size: 1.2rem;
+      cursor: pointer;
+    }
+
+    /* ВЕРХНИЕ ВКЛАДКИ — НИЧТО НЕ ПЕРЕКРОЕТ */
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      background: var(--card);
+      padding: 6px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      margin-bottom: 14px;
+      position: sticky;
+      top: 8px;
+      z-index: 9999;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.25);
+    }
+    .tab-btn {
+      padding: 11px 4px;
+      background: transparent;
+      border: none;
+      border-radius: 11px;
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 0.84rem;
+      cursor: pointer;
+      transition: 0.15s;
+    }
+    .tab-btn.active {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .card-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin-bottom: 10px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 4px; }
+    input, select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .stat-box {
+      background: var(--accent-soft);
+      border-radius: 14px;
+      padding: 12px;
+      text-align: center;
+    }
+    .stat-box.mint { background: var(--mint-soft); }
+    .stat-val { font-size: 1.45rem; font-weight: 800; color: var(--accent); }
+    .stat-box.mint .stat-val { color: var(--mint); }
+    .stat-lbl { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+    .formula-hint { font-size: 0.78rem; color: var(--muted); margin-top: 8px; line-height: 1.35; }
+    .scoop-box {
+      margin-top: 10px;
+      padding: 10px 12px;
+      background: var(--bg);
+      border-radius: 12px;
+      font-size: 0.85rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .timer-display {
+      font-size: 1.7rem;
+      font-weight: 800;
+      text-align: center;
+      margin: 6px 0;
+      color: var(--mint);
+    }
+    .btn-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+    .btn {
+      flex: 1;
+      min-height: 46px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      padding: 8px 10px;
+    }
+    .btn:active { opacity: 0.7; transform: scale(0.97); }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      width: 100%;
+      margin-top: 12px;
+      font-size: 1rem;
+      min-height: 50px;
+    }
+    .chip {
+      padding: 8px 12px;
+      border-radius: 99px;
+      font-size: 0.8rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .log-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    .log-item:last-child { border-bottom: none; }
+    .del-btn {
+      background: none;
+      border: none;
+      color: var(--danger);
+      font-size: 1.1rem;
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    .check-row input { width: 22px; height: 22px; }
+
+    /* Блокировка баннеров tiiny.host */
+    a[href*="tiiny.host"], div[class*="tiiny"], iframe[src*="tiiny"] {
+      display: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      height: 0 !important;
+      visibility: hidden !important;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="appRoot">
+    <header>
+      <div class="title-wrap">
+        <h1>🍼 Трекер малышки</h1>
+        <div class="age-badge" id="ageBadge">Возраст: укажите дату во вкладке «Нормы»</div>
+      </div>
+      <button type="button" class="theme-btn" id="themeBtn">🌙</button>
+    </header>
+
+    <!-- ПАНЕЛЬ ВКЛАДОК СВЕРХУ -->
+    <nav class="tabs">
+      <button type="button" class="tab-btn active" data-tab="feed">🍼 Кормление</button>
+      <button type="button" class="tab-btn" data-tab="calc">🧮 Нормы</button>
+      <button type="button" class="tab-btn" data-tab="diary">🧷 Дневник</button>
+    </nav>
+
+    <!-- ВКЛАДКА 1: КОРМЛЕНИЕ -->
+    <div id="tab-feed" class="tab-pane active">
+      <div class="card">
+        <div class="card-title">
+          <span>До следующего кормления</span>
+          <span id="nextFeedTime" style="color:var(--text)">--:--</span>
+        </div>
+        <div class="timer-display" id="countdown">Нет записей</div>
+        <div style="text-align:center; font-size:0.8rem; color:var(--muted);" id="todayTotal">Съедено за сегодня: 0 мл</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Записать кормление</div>
+        <div class="grid-2">
+          <div>
+            <label>Объём (мл)</label>
+            <input type="number" id="feedMl" value="90" inputmode="numeric">
+          </div>
+          <div>
+            <label>Тип питания</label>
+            <select id="feedType">
+              <option value="Смесь">🍼 Смесь</option>
+              <option value="ГВ / Молоко">🤱 ГВ / Молоко</option>
+              <option value="Водичка">💧 Водичка</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button type="button" class="btn" data-adj="-30">-30</button>
+          <button type="button" class="btn" data-adj="-10">-10</button>
+          <button type="button" class="btn" id="btnSetNorm">Норма</button>
+          <button type="button" class="btn" data-adj="10">+10</button>
+          <button type="button" class="btn" data-adj="30">+30</button>
+        </div>
+
+        <div class="btn-row" style="margin-top:10px;">
+          <button type="button" class="chip" data-tag="Уснула 😴">Уснула 😴</button>
+          <button type="button" class="chip" data-tag="Срыгнула 💧">Срыгнула 💧</button>
+          <button type="button" class="chip" data-tag="Капризничала 🥺">Капризничала 🥺</button>
+        </div>
+
+        <button type="button" class="btn btn-primary" id="btnAddFeed">✅ Записать кормление</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Журнал за сегодня</div>
+        <div id="feedLog"></div>
+      </div>
+    </div>
+
+    <!-- ВКЛАДКА 2: КАЛЬКУЛЯТОР НОРМ -->
+    <div id="tab-calc" class="tab-pane">
+      <div class="card">
+        <div class="card-title">Параметры малышки</div>
+        <div class="grid-2">
+          <div>
+            <label>Дата рождения</label>
+            <input type="date" id="birthDate">
+          </div>
+          <div>
+            <label>Текущий вес (г)</label>
+            <input type="number" id="currentWeight" value="3800" inputmode="numeric">
+          </div>
+          <div>
+            <label>Вес при рождении (г)</label>
+            <input type="number" id="birthWeight" value="3300" inputmode="numeric">
+          </div>
+          <div>
+            <label>Интервал (часов)</label>
+            <select id="feedInterval">
+              <option value="2.5">2.5 часа (9–10 раз)</option>
+              <option value="3" selected>3 часа (8 раз)</option>
+              <option value="3.5">3.5 часа (7 раз)</option>
+              <option value="4">4 часа (6 раз)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Расчётная норма</div>
+        <div class="grid-2">
+          <div class="stat-box">
+            <div class="stat-val" id="dailyNorm">-- мл</div>
+            <div class="stat-lbl">Суточный объём</div>
+          </div>
+          <div class="stat-box mint">
+            <div class="stat-val" id="singleNorm">-- мл</div>
+            <div class="stat-lbl">Разовая порция</div>
+          </div>
+        </div>
+        <div class="formula-hint" id="formulaHint"></div>
+        <div class="scoop-box" id="scoopHint"></div>
+      </div>
+    </div>
+
+    <!-- ВКЛАДКА 3: ДНЕВНИК -->
+    <div id="tab-diary" class="tab-pane">
+      <div class="card">
+        <div class="card-title">Подгузники за сегодня</div>
+        <div class="grid-3">
+          <button type="button" class="btn" data-diaper="💧 Попис">💧 Попис (<span id="cntPee">0</span>)</button>
+          <button type="button" class="btn" data-diaper="💩 Покак">💩 Покак (<span id="cntPoop">0</span>)</button>
+          <button type="button" class="btn" data-diaper="⚡ Комбо">⚡ Комбо (<span id="cntMix">0</span>)</button>
+        </div>
+        <div id="diaperLog" style="margin-top:10px;"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Ежедневный чек-лист</div>
+        <label class="check-row"><input type="checkbox" id="chkD3"> Дать Витамин D3</label>
+        <label class="check-row"><input type="checkbox" id="chkTummy"> Выкладывание на животик</label>
+        <label class="check-row"><input type="checkbox" id="chkBath"> Купание / гигиена</label>
+        <label class="check-row"><input type="checkbox" id="chkWalk"> Прогулка / проветривание</label>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Отчёт и резервная копия</div>
+        <button type="button" class="btn btn-primary" id="btnCopyReport" style="margin-top:0;">📋 Скопировать сводку за сутки</button>
+        <div class="btn-row" style="margin-top:10px;">
+          <button type="button" class="btn" id="btnExport">💾 Сохранить базу</button>
+          <button type="button" class="btn" id="btnImport">📂 Восстановить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      // Авто-зачистка любых внешних рекламных баннеров хостинга
+      function killBanners() {
+        document.querySelectorAll('body > *').forEach(el => {
+          if (el.id !== 'appRoot' && el.tagName !== 'SCRIPT') {
+            el.style.setProperty('display', 'none', 'important');
+            el.remove();
+          }
+        });
+      }
+      setInterval(killBanners, 600);
+      window.addEventListener('load', killBanners);
+
+      const STATE_KEY = 'baby_tracker_pro_v4';
+
+      function loadStorage() {
+        try {
+          const raw = localStorage.getItem(STATE_KEY);
+          if (raw) return JSON.parse(raw);
+        } catch (e) {}
+        try {
+          if (window.name && window.name.startsWith('{')) return JSON.parse(window.name);
+        } catch (e) {}
+        return null;
+      }
+
+      function saveStorage(data) {
+        const json = JSON.stringify(data);
+        try { localStorage.setItem(STATE_KEY, json); } catch (e) {}
+        try { window.name = json; } catch (e) {}
+      }
+
+      let state = loadStorage() || {
+        theme: 'dark',
+        birthDate: '',
+        currentWeight: 3800,
+        birthWeight: 3300,
+        interval: 3,
+        feeds: [],
+        diapers: [],
+        checklist: { date: '', d3: false, tummy: false, bath: false, walk: false }
+      };
+
+      let activeTags = [];
+      let currentSingleNorm = 90;
+
+      function applyTheme() {
+        document.documentElement.setAttribute('data-theme', state.theme);
+        document.getElementById('themeBtn').textContent = state.theme === 'dark' ? '🌙' : '☀️';
+      }
+
+      function saveAndCalc() {
+        state.birthDate = document.getElementById('birthDate').value;
+        state.currentWeight = Number(document.getElementById('currentWeight').value) || 3500;
+        state.birthWeight = Number(document.getElementById('birthWeight').value) || 3300;
+        state.interval = Number(document.getElementById('feedInterval').value) || 3;
+
+        let ageDays = 30;
+        if (state.birthDate) {
+          const diff = Date.now() - new Date(state.birthDate).getTime();
+          ageDays = Math.max(1, Math.floor(diff / 86400000));
+          const months = Math.floor(ageDays / 30);
+          const remDays = ageDays % 30;
+          document.getElementById('ageBadge').textContent = months > 0
+            ? `Возраст: ${months} мес. ${remDays} дн. (${ageDays} дн.)`
+            : `Возраст: ${ageDays} дн.`;
+        }
+
+        let daily = 0;
+        let method = '';
+        if (ageDays <= 10) {
+          const k = state.birthWeight
