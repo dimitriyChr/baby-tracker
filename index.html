@@ -78,7 +78,6 @@
     }
     .sync-drawer.open { display: block; }
 
-    /* 4 ВКЛАДКИ СВЕРХУ */
     .tabs {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -283,33 +282,29 @@
         <div class="age-badge" id="ageBadge">Возраст: укажите дату во вкладке «Нормы»</div>
       </div>
       <div class="header-actions">
-        <button type="button" class="icon-btn" onclick="app.toggleSyncDrawer()">
-          <span>Параметры</span>
-        </button>
-        <button type="button" class="icon-btn" id="themeBtn" onclick="app.toggleTheme()">🌙</button>
+        <button type="button" class="icon-btn" onclick="toggleSyncDrawer()">Параметры</button>
+        <button type="button" class="icon-btn" id="themeBtn" onclick="toggleTheme()">🌙</button>
       </div>
     </header>
 
-    <!-- ПАНЕЛЬ ВЫБОРА РОЛИ -->
     <div class="sync-drawer" id="syncDrawer">
       <div class="card-title"><span>👤 Кто делает запись</span></div>
       <label>Выбери свой профиль:</label>
       <div class="grid-2" style="margin-bottom:8px;">
-        <button type="button" class="btn" id="rolePapa" onclick="app.setRole('👨 Папа')">👨 Папа</button>
-        <button type="button" class="btn" id="roleMama" onclick="app.setRole('👩 Мама')">👩 Мама</button>
+        <button type="button" class="btn" id="rolePapa" onclick="setRole('👨 Папа')">👨 Папа</button>
+        <button type="button" class="btn" id="roleMama" onclick="setRole('👩 Мама')">👩 Мама</button>
       </div>
-      <button type="button" class="btn" onclick="app.toggleSyncDrawer()">Закрыть</button>
+      <button type="button" class="btn" onclick="toggleSyncDrawer()">Закрыть</button>
     </div>
 
-    <!-- 4 ВКЛАДКИ -->
     <nav class="tabs">
-      <button type="button" class="tab-btn active" id="tabBtn-feed" onclick="app.switchTab('feed')">🍼 Кормл.</button>
-      <button type="button" class="tab-btn" id="tabBtn-calc" onclick="app.switchTab('calc')">🧮 Нормы</button>
-      <button type="button" class="tab-btn" id="tabBtn-diary" onclick="app.switchTab('diary')">🧷 Дневник</button>
-      <button type="button" class="tab-btn" id="tabBtn-noise" onclick="app.switchTab('noise')">🎵 Шум</button>
+      <button type="button" class="tab-btn active" id="tabBtn-feed" onclick="switchTab('feed')">🍼 Кормл.</button>
+      <button type="button" class="tab-btn" id="tabBtn-calc" onclick="switchTab('calc')">🧮 Нормы</button>
+      <button type="button" class="tab-btn" id="tabBtn-diary" onclick="switchTab('diary')">🧷 Дневник</button>
+      <button type="button" class="tab-btn" id="tabBtn-noise" onclick="switchTab('noise')">🎵 Шум</button>
     </nav>
 
-    <!-- ВКЛАДКА 1: КОРМЛЕНИЕ -->
+    <!-- ВКЛАДКА 1 -->
     <div id="tab-feed" class="tab-pane active">
       <div class="card">
         <div class="card-title">
@@ -338,33 +333,33 @@
         </div>
 
         <div class="btn-row">
-          <button type="button" class="btn" onclick="app.adjustMl(-30)">-30</button>
-          <button type="button" class="btn" onclick="app.adjustMl(-10)">-10</button>
-          <button type="button" class="btn" onclick="app.setNormMl()">Норма</button>
-          <button type="button" class="btn" onclick="app.adjustMl(10)">+10</button>
-          <button type="button" class="btn" onclick="app.adjustMl(30)">+30</button>
+          <button type="button" class="btn" onclick="adjustMl(-30)">-30</button>
+          <button type="button" class="btn" onclick="adjustMl(-10)">-10</button>
+          <button type="button" class="btn" onclick="setNormMl()">Норма</button>
+          <button type="button" class="btn" onclick="adjustMl(10)">+10</button>
+          <button type="button" class="btn" onclick="adjustMl(30)">+30</button>
         </div>
 
         <div class="time-box">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
             <label style="margin:0; font-weight:700; color:var(--text);">⏰ Время кормления:</label>
-            <input type="time" id="feedTimeInput" oninput="app.onTimeManualInput()" style="width:135px; padding:6px 10px; text-align:center;">
+            <input type="time" id="feedTimeInput" oninput="onTimeManualInput()" style="width:135px; padding:6px 10px; text-align:center;">
           </div>
           <div class="btn-row" style="margin-top:8px;">
-            <button type="button" class="btn btn-sm" onclick="app.setTimeNow()" style="border-color:var(--mint); color:var(--mint);">Сейчас</button>
-            <button type="button" class="btn btn-sm" onclick="app.shiftTime(-15)">-15 мин</button>
-            <button type="button" class="btn btn-sm" onclick="app.shiftTime(-30)">-30 мин</button>
-            <button type="button" class="btn btn-sm" onclick="app.shiftTime(-60)">-1 час</button>
+            <button type="button" class="btn btn-sm" onclick="setTimeNow()" style="border-color:var(--mint); color:var(--mint);">Сейчас</button>
+            <button type="button" class="btn btn-sm" onclick="shiftTime(-15)">-15 мин</button>
+            <button type="button" class="btn btn-sm" onclick="shiftTime(-30)">-30 мин</button>
+            <button type="button" class="btn btn-sm" onclick="shiftTime(-60)">-1 час</button>
           </div>
         </div>
 
         <div class="btn-row" style="margin-top:10px;">
-          <button type="button" class="chip" onclick="app.toggleTag(this, 'Уснула 😴')">Уснула 😴</button>
-          <button type="button" class="chip" onclick="app.toggleTag(this, 'Срыгнула 💧')">Срыгнула 💧</button>
-          <button type="button" class="chip" onclick="app.toggleTag(this, 'Капризничала 🥺')">Капризничала 🥺</button>
+          <button type="button" class="chip" onclick="toggleTag(this, 'Уснула 😴')">Уснула 😴</button>
+          <button type="button" class="chip" onclick="toggleTag(this, 'Срыгнула 💧')">Срыгнула 💧</button>
+          <button type="button" class="chip" onclick="toggleTag(this, 'Капризничала 🥺')">Капризничала 🥺</button>
         </div>
 
-        <button type="button" class="btn btn-primary" onclick="app.addFeed()">✅ Записать кормление</button>
+        <button type="button" class="btn btn-primary" onclick="addFeed()">✅ Записать кормление</button>
       </div>
 
       <div class="card">
@@ -376,26 +371,26 @@
       </div>
     </div>
 
-    <!-- ВКЛАДКА 2: НОРМЫ -->
+    <!-- ВКЛАДКА 2 -->
     <div id="tab-calc" class="tab-pane">
       <div class="card">
         <div class="card-title">Параметры малышки</div>
         <div class="grid-2">
           <div>
             <label>Дата рождения</label>
-            <input type="date" id="birthDate" onchange="app.saveAndCalc()">
+            <input type="date" id="birthDate" onchange="saveAndCalc()">
           </div>
           <div>
             <label>Текущий вес (г)</label>
-            <input type="number" id="currentWeight" value="3800" inputmode="numeric" oninput="app.saveAndCalc()" onchange="app.saveAndCalc()">
+            <input type="number" id="currentWeight" value="3800" inputmode="numeric" oninput="saveAndCalc()" onchange="saveAndCalc()">
           </div>
           <div>
             <label>Вес при рождении (г)</label>
-            <input type="number" id="birthWeight" value="3300" inputmode="numeric" oninput="app.saveAndCalc()" onchange="app.saveAndCalc()">
+            <input type="number" id="birthWeight" value="3300" inputmode="numeric" oninput="saveAndCalc()" onchange="saveAndCalc()">
           </div>
           <div>
             <label>Интервал (часов)</label>
-            <select id="feedInterval" onchange="app.saveAndCalc()">
+            <select id="feedInterval" onchange="saveAndCalc()">
               <option value="2.5">2.5 часа (9–10 раз)</option>
               <option value="3" selected>3 часа (8 раз)</option>
               <option value="3.5">3.5 часа (7 раз)</option>
@@ -422,60 +417,290 @@
       </div>
     </div>
 
-    <!-- ВКЛАДКА 3: ДНЕВНИК -->
+    <!-- ВКЛАДКА 3 -->
     <div id="tab-diary" class="tab-pane">
       <div class="card">
         <div class="card-title">Подгузники за сегодня</div>
         <div class="grid-3">
-          <button type="button" class="btn" onclick="app.addDiaper('💧 Попис')">💧 Попис (<span id="cntPee">0</span>)</button>
-          <button type="button" class="btn" onclick="app.addDiaper('💩 Покак')">💩 Покак (<span id="cntPoop">0</span>)</button>
-          <button type="button" class="btn" onclick="app.addDiaper('⚡ Комбо')">⚡ Комбо (<span id="cntMix">0</span>)</button>
+          <button type="button" class="btn" onclick="addDiaper('💧 Попис')">💧 Попис (<span id="cntPee">0</span>)</button>
+          <button type="button" class="btn" onclick="addDiaper('💩 Покак')">💩 Покак (<span id="cntPoop">0</span>)</button>
+          <button type="button" class="btn" onclick="addDiaper('⚡ Комбо')">⚡ Комбо (<span id="cntMix">0</span>)</button>
         </div>
         <div id="diaperLog" style="margin-top:10px;"></div>
       </div>
 
       <div class="card">
         <div class="card-title">Ежедневный чек-лист</div>
-        <label class="check-row"><input type="checkbox" id="chkD3" onchange="app.saveChecklist()"> Дать Витамин D3</label>
-        <label class="check-row"><input type="checkbox" id="chkTummy" onchange="app.saveChecklist()"> Выкладывание на животик</label>
-        <label class="check-row"><input type="checkbox" id="chkBath" onchange="app.saveChecklist()"> Купание / гигиена</label>
-        <label class="check-row"><input type="checkbox" id="chkWalk" onchange="app.saveChecklist()"> Прогулка / проветривание</label>
+        <label class="check-row"><input type="checkbox" id="chkD3" onchange="saveChecklist()"> Дать Витамин D3</label>
+        <label class="check-row"><input type="checkbox" id="chkTummy" onchange="saveChecklist()"> Выкладывание на животик</label>
+        <label class="check-row"><input type="checkbox" id="chkBath" onchange="saveChecklist()"> Купание / гигиена</label>
+        <label class="check-row"><input type="checkbox" id="chkWalk" onchange="saveChecklist()"> Прогулка / проветривание</label>
       </div>
 
       <div class="card">
         <div class="card-title">Отчёт и обмен с женой</div>
-        <button type="button" class="btn btn-primary" onclick="app.copyReport()" style="margin-top:0;">📋 Скопировать сводку за сутки</button>
+        <button type="button" class="btn btn-primary" onclick="copyReport()" style="margin-top:0;">📋 Скопировать сводку за сутки</button>
         <div class="btn-row" style="margin-top:10px;">
-          <button type="button" class="btn" onclick="app.exportData()">📤 Экспорт базы</button>
-          <button type="button" class="btn" onclick="app.importData()">📥 Импорт</button>
+          <button type="button" class="btn" onclick="exportData()">📤 Экспорт базы</button>
+          <button type="button" class="btn" onclick="importData()">📥 Импорт</button>
         </div>
       </div>
     </div>
 
-    <!-- ВКЛАДКА 4: БЕЛЫЙ ШУМ (НОВОЕ!) -->
+    <!-- ВКЛАДКА 4 -->
     <div id="tab-noise" class="tab-pane">
       <div class="card" style="text-align: center;">
         <div class="card-title" style="justify-content: center;"><span>🎵 Генератор сна и шума</span></div>
         <div style="font-size: 0.85rem; color: var(--muted); margin-bottom: 14px;">
           Работает без интернета прямо в телефоне. Помогает малышке успокоиться и быстро уснуть.
         </div>
-
         <div class="timer-display" id="noiseStatus" style="font-size: 1.3rem; margin-bottom: 14px;">⏸️ Выключено</div>
-
         <div class="grid-3" style="margin-bottom: 10px;">
-          <button type="button" class="btn" id="btnNoiseWhite" onclick="app.startNoise('white')">☁️ Белый шум</button>
-          <button type="button" class="btn" id="btnNoisePink" onclick="app.startNoise('pink')">🌧️ Дождь</button>
-          <button type="button" class="btn" id="btnNoiseFan" onclick="app.startNoise('fan')">💨 Фен / Шипение</button>
+          <button type="button" class="btn" onclick="startNoise('white')">☁️ Белый шум</button>
+          <button type="button" class="btn" onclick="startNoise('pink')">🌧️ Дождь</button>
+          <button type="button" class="btn" onclick="startNoise('fan')">💨 Фен</button>
         </div>
-
-        <button type="button" class="btn btn-primary" id="btnStopNoise" onclick="app.stopNoise()" style="background:var(--danger); display:none;">⏹️ Остановить звук</button>
+        <button type="button" class="btn btn-primary" id="btnStopNoise" onclick="stopNoise()" style="background:var(--danger); display:none;">⏹️ Остановить звук</button>
       </div>
 
       <div class="card">
         <div class="card-title"><span>⏳ Автоотключение</span></div>
         <div class="grid-3">
-          <button type="button" class="btn btn-sm" onclick="app.setNoiseTimer(15)">15 мин</button>
-          <button type="button" class="btn btn-sm" onclick="app.setNoiseTimer(30)">30 мин</button>
-          <button type="button" class="btn btn-sm" onclick="app.setNoiseTimer(0)" style="border-color:var(--accent);">∞ Всю ночь</button>
+          <button type="button" class="btn btn-sm" onclick="setNoiseTimer(15)">15 мин</button>
+          <button type="button" class="btn btn-sm" onclick="setNoiseTimer(30)">30 мин</button>
+          <button type="button" class="btn btn-sm" onclick="setNoiseTimer(0)" style="border-color:var(--accent);">∞ Всю ночь</button>
         </div>
-        <div style="text-align:center; font-size:0
+        <div style="text-align:center; font-size:0.78rem; color:var(--muted); margin-top:8px;" id="noiseTimerLabel">Таймер выключен</div>
+      </div>
+    </div>
+
+    <!-- МОДАЛКА -->
+    <div class="modal-backdrop" id="timeModal">
+      <div class="modal-box">
+        <div class="card-title"><span>⏰ Изменить время записи</span></div>
+        <input type="time" id="modalTimeInput" style="font-size:1.3rem; text-align:center; margin:8px 0 14px;">
+        <div class="btn-row">
+          <button type="button" class="btn" onclick="closeTimeModal()">Отмена</button>
+          <button type="button" class="btn" onclick="saveEditedTime()" style="background:var(--accent);color:#fff;border:none;">Сохранить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STATE_KEY = 'baby_tracker_pro_v8';
+
+    let audioCtx = null;
+    let noiseNode = null;
+    let noiseGain = null;
+    let noiseTimerId = null;
+
+    function startNoise(type) {
+      stopNoise();
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContext();
+        const bufferSize = audioCtx.sampleRate * 2;
+        const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          if (type === 'white') {
+            output[i] = white * 0.4;
+          } else if (type === 'pink') {
+            b0 = 0.99886 * b0 + white * 0.0555179;
+            b1 = 0.99332 * b1 + white * 0.0750759;
+            b2 = 0.96900 * b2 + white * 0.1538520;
+            b3 = 0.86650 * b3 + white * 0.3104856;
+            b4 = 0.55000 * b4 + white * 0.5329522;
+            b5 = -0.7616 * b5 - white * 0.0168980;
+            output[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.035;
+            b6 = white * 0.115926;
+          } else if (type === 'fan') {
+            b0 = 0.95 * b0 + white * 0.1;
+            output[i] = b0 * 0.6;
+          }
+        }
+
+        noiseNode = audioCtx.createBufferSource();
+        noiseNode.buffer = noiseBuffer;
+        noiseNode.loop = true;
+        noiseGain = audioCtx.createGain();
+        noiseGain.gain.value = 0.25;
+
+        noiseNode.connect(noiseGain);
+        noiseGain.connect(audioCtx.destination);
+        noiseNode.start(0);
+
+        const titles = { white: '☁️ Белый шум', pink: '🌧️ Дождь', fan: '💨 Фен' };
+        document.getElementById('noiseStatus').textContent = '▶️ Играет: ' + titles[type];
+        document.getElementById('noiseStatus').style.color = 'var(--mint)';
+        document.getElementById('btnStopNoise').style.display = 'block';
+      } catch (e) {
+        alert('Нажмите кнопку еще раз для запуска звука.');
+      }
+    }
+
+    function stopNoise() {
+      if (noiseNode) { try { noiseNode.stop(); noiseNode.disconnect(); } catch(e){} noiseNode = null; }
+      if (audioCtx) { try { audioCtx.close(); } catch(e){} audioCtx = null; }
+      if (noiseTimerId) { clearTimeout(noiseTimerId); noiseTimerId = null; }
+      document.getElementById('noiseStatus').textContent = '⏸️ Выключено';
+      document.getElementById('noiseStatus').style.color = 'var(--text)';
+      document.getElementById('btnStopNoise').style.display = 'none';
+      document.getElementById('noiseTimerLabel').textContent = 'Таймер выключен';
+    }
+
+    function setNoiseTimer(minutes) {
+      if (noiseTimerId) clearTimeout(noiseTimerId);
+      if (minutes <= 0) {
+        document.getElementById('noiseTimerLabel').textContent = 'Таймер выключен';
+        return;
+      }
+      document.getElementById('noiseTimerLabel').textContent = '⏰ Автоотключение через ' + minutes + ' мин.';
+      noiseTimerId = setTimeout(() => { stopNoise(); }, minutes * 60 * 1000);
+    }
+
+    function pad2(n) { return String(n).padStart(2, '0'); }
+    function formatHHMM(dateObj) {
+      const d = (dateObj instanceof Date && !isNaN(dateObj)) ? dateObj : new Date();
+      return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    }
+    function formatDateKey(dateObj) {
+      const d = (dateObj instanceof Date && !isNaN(dateObj)) ? dateObj : new Date();
+      return pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) + '.' + d.getFullYear();
+    }
+
+    function defaultState() {
+      return {
+        theme: 'dark',
+        role: '👨 Папа',
+        birthDate: '',
+        currentWeight: 3800,
+        birthWeight: 3300,
+        interval: 3,
+        feeds: [],
+        diapers: [],
+        checklist: { date: formatDateKey(new Date()), d3: false, tummy: false, bath: false, walk: false }
+      };
+    }
+
+    function sanitizeState(raw) {
+      const def = defaultState();
+      if (!raw || typeof raw !== 'object') return def;
+      return {
+        theme: raw.theme === 'light' ? 'light' : 'dark',
+        role: raw.role || '👨 Папа',
+        birthDate: raw.birthDate || '',
+        currentWeight: Number(raw.currentWeight) || 3800,
+        birthWeight: Number(raw.birthWeight) || 3300,
+        interval: Number(raw.interval) || 3,
+        feeds: Array.isArray(raw.feeds) ? raw.feeds : [],
+        diapers: Array.isArray(raw.diapers) ? raw.diapers : [],
+        checklist: (raw.checklist && typeof raw.checklist === 'object') ? {
+          date: raw.checklist.date || formatDateKey(new Date()),
+          d3: Boolean(raw.checklist.d3),
+          tummy: Boolean(raw.checklist.tummy),
+          bath: Boolean(raw.checklist.bath),
+          walk: Boolean(raw.checklist.walk)
+        } : def.checklist
+      };
+    }
+
+    function loadStorage() {
+      try {
+        const raw = localStorage.getItem(STATE_KEY);
+        if (raw) return sanitizeState(JSON.parse(raw));
+      } catch (e) {}
+      return defaultState();
+    }
+
+    function saveStorage(data) {
+      try { localStorage.setItem(STATE_KEY, JSON.stringify(data)); } catch (e) {}
+    }
+
+    let state = loadStorage();
+    let activeTags = [];
+    let currentSingleNorm = 90;
+    let customTimeEdited = false;
+    let editingTarget = null;
+
+    function buildTimestampFromHHMM(hhmm, baseTimestamp) {
+      const base = baseTimestamp ? new Date(baseTimestamp) : new Date();
+      if (!hhmm || typeof hhmm !== 'string' || !hhmm.includes(':')) return Date.now();
+      const parts = hhmm.split(':');
+      const h = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (isNaN(h) || isNaN(m)) return Date.now();
+      const candidate = new Date(base);
+      candidate.setHours(h, m, 0, 0);
+      if (!baseTimestamp && candidate.getTime() - Date.now() > 10 * 60 * 1000) {
+        candidate.setDate(candidate.getDate() - 1);
+      }
+      return candidate.getTime();
+    }
+
+    function sortEntries() {
+      state.feeds.sort((a, b) => (b.ts || b.id) - (a.ts || a.id));
+      state.diapers.sort((a, b) => (b.ts || b.id) - (a.ts || a.id));
+    }
+
+    function setTimeNow() {
+      const inp = document.getElementById('feedTimeInput');
+      if (inp) inp.value = formatHHMM(new Date());
+      customTimeEdited = false;
+    }
+
+    function shiftTime(deltaMinutes) {
+      const inp = document.getElementById('feedTimeInput');
+      if (!inp) return;
+      const baseTs = customTimeEdited ? buildTimestampFromHHMM(inp.value) : Date.now();
+      const shifted = new Date(baseTs + Number(deltaMinutes) * 60000);
+      inp.value = formatHHMM(shifted);
+      customTimeEdited = true;
+    }
+
+    function onTimeManualInput() { customTimeEdited = true; }
+
+    function applyTheme() {
+      document.documentElement.setAttribute('data-theme', state.theme);
+      const btn = document.getElementById('themeBtn');
+      if (btn) btn.textContent = state.theme === 'dark' ? '🌙' : '☀️';
+    }
+
+    function applyRoleUI() {
+      const p = document.getElementById('rolePapa');
+      const m = document.getElementById('roleMama');
+      if (p) p.style.borderColor = state.role.includes('Папа') ? 'var(--accent)' : 'var(--border)';
+      if (m) m.style.borderColor = state.role.includes('Мама') ? 'var(--accent)' : 'var(--border)';
+    }
+
+    function syncInputsFromState() {
+      document.getElementById('birthDate').value = state.birthDate || '';
+      document.getElementById('currentWeight').value = state.currentWeight || 3800;
+      document.getElementById('birthWeight').value = state.birthWeight || 3300;
+      document.getElementById('feedInterval').value = state.interval || 3;
+      document.getElementById('chkD3').checked = Boolean(state.checklist.d3);
+      document.getElementById('chkTummy').checked = Boolean(state.checklist.tummy);
+      document.getElementById('chkBath').checked = Boolean(state.checklist.bath);
+      document.getElementById('chkWalk').checked = Boolean(state.checklist.walk);
+      applyRoleUI();
+    }
+
+    function saveAndCalc() {
+      state.birthDate = document.getElementById('birthDate').value;
+      state.currentWeight = Number(document.getElementById('currentWeight').value) || 3500;
+      state.birthWeight = Number(document.getElementById('birthWeight').value) || 3300;
+      state.interval = Number(document.getElementById('feedInterval').value) || 3;
+
+      let ageDays = 30;
+      if (state.birthDate) {
+        const diff = Date.now() - new Date(state.birthDate).getTime();
+        ageDays = Math.max(1, Math.floor(diff / 86400000));
+        const months = Math.floor(ageDays / 30);
+        const remDays = ageDays % 30;
+        document.getElementById('ageBadge').textContent = months > 0
+          ? 'Возраст: ' + months + ' мес. ' + remDays + ' дн. (' + ageDays + ' дн.)'
+          : 'Во
