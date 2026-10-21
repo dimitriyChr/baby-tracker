@@ -1,4 +1,3 @@
-[https://telegram.org/js/telegram-web-app.js](https://telegram.org/js/telegram-web-app.js)
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -8,7 +7,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#0f172a">
-  <title>Трекер малышки Pro</title>
+  <title>Трекер малышки TWA</title>
+  <!-- Официальный SDK Telegram Mini App -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     :root {
       --bg: #0f172a;
@@ -283,18 +284,14 @@
         <div class="age-badge" id="ageBadge">Возраст: укажите дату во вкладке «Нормы»</div>
       </div>
       <div class="header-actions">
-        <button type="button" class="icon-btn" onclick="toggleSyncDrawer()">Параметры</button>
+        <button type="button" class="icon-btn" onclick="toggleSyncDrawer()" id="profileBtn">Профиль</button>
         <button type="button" class="icon-btn" id="themeBtn" onclick="toggleTheme()">🌙</button>
       </div>
     </header>
 
     <div class="sync-drawer" id="syncDrawer">
-      <div class="card-title"><span>👤 Кто делает запись</span></div>
-      <label>Выбери свой профиль:</label>
-      <div class="grid-2" style="margin-bottom:8px;">
-        <button type="button" class="btn" id="rolePapa" onclick="setRole('👨 Папа')">👨 Папа</button>
-        <button type="button" class="btn" id="roleMama" onclick="setRole('👩 Мама')">👩 Мама</button>
-      </div>
+      <div class="card-title"><span>👤 Telegram Аккаунт</span></div>
+      <div id="tgUserInfo" style="font-size: 0.85rem; color: var(--muted); margin-bottom: 10px;">Загрузка данных Telegram...</div>
       <button type="button" class="btn" onclick="toggleSyncDrawer()">Закрыть</button>
     </div>
 
@@ -365,7 +362,7 @@
       <div class="card">
         <div class="card-title">
           <span>Журнал за сегодня (жми на время ✏️)</span>
-          <span style="font-size:0.72rem; text-transform:none; color:var(--mint);">Работает ⚡</span>
+          <span style="font-size:0.72rem; text-transform:none; color:var(--mint);">Telegram Mini App ⚡</span>
         </div>
         <div id="feedLog"></div>
       </div>
@@ -438,10 +435,10 @@
       </div>
 
       <div class="card">
-        <div class="card-title">Отчёт и обмен с женой</div>
+        <div class="card-title">Отчёт и бэкап</div>
         <button type="button" class="btn btn-primary" onclick="copyReport()" style="margin-top:0;">📋 Скопировать сводку за сутки</button>
         <div class="btn-row" style="margin-top:10px;">
-          <button type="button" class="btn" onclick="exportData()">📤 Экспорт базы</button>
+          <button type="button" class="btn" onclick="exportData()">📤 Экспорт</button>
           <button type="button" class="btn" onclick="importData()">📥 Импорт</button>
         </div>
       </div>
@@ -461,7 +458,31 @@
   </div>
 
   <script>
-    const STATE_KEY = 'baby_tracker_pro_v9';
+    // Инициализация Telegram WebApp
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+
+    // Определяем пользователя из Telegram
+    let tgUser = tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user : null;
+    let userName = tgUser ? (tgUser.first_name || 'Родитель') : 'Папа';
+    let userKeySuffix = tgUser ? '_' + tgUser.id : '_local';
+    const STATE_KEY = 'baby_tracker_twa' + userKeySuffix;
+
+    // Автонастройка темы под Telegram
+    if (tg.colorScheme === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+
+    // Выводим инфо о юзере в панели
+    window.addEventListener('DOMContentLoaded', () => {
+      const infoBox = document.getElementById('tgUserInfo');
+      if (tgUser) {
+        infoBox.innerHTML = `👤 <b>${tgUser.first_name}</b> ${tgUser.last_name || ''} <br>ID: ${tgUser.id}<br><span style="color:var(--mint)">Статус: Подключено к Telegram</span>`;
+      } else {
+        infoBox.innerHTML = `⚠️ Запущено вне Telegram (локальный режим браузера)`;
+      }
+    });
 
     function pad2(n) { return String(n).padStart(2, '0'); }
     function formatHHMM(dateObj) {
@@ -475,8 +496,8 @@
 
     function defaultState() {
       return {
-        theme: 'dark',
-        role: '👨 Папа',
+        theme: tg.colorScheme || 'dark',
+        role: userName,
         birthDate: '',
         currentWeight: 3800,
         birthWeight: 3300,
@@ -492,7 +513,7 @@
       if (!raw || typeof raw !== 'object') return def;
       return {
         theme: raw.theme === 'light' ? 'light' : 'dark',
-        role: raw.role || '👨 Папа',
+        role: raw.role || userName,
         birthDate: raw.birthDate || '',
         currentWeight: Number(raw.currentWeight) || 3800,
         birthWeight: Number(raw.birthWeight) || 3300,
@@ -570,13 +591,6 @@
       if (btn) btn.textContent = state.theme === 'dark' ? '🌙' : '☀️';
     }
 
-    function applyRoleUI() {
-      const p = document.getElementById('rolePapa');
-      const m = document.getElementById('roleMama');
-      if (p) p.style.borderColor = state.role.includes('Папа') ? 'var(--accent)' : 'var(--border)';
-      if (m) m.style.borderColor = state.role.includes('Мама') ? 'var(--accent)' : 'var(--border)';
-    }
-
     function syncInputsFromState() {
       document.getElementById('birthDate').value = state.birthDate || '';
       document.getElementById('currentWeight').value = state.currentWeight || 3800;
@@ -586,7 +600,6 @@
       document.getElementById('chkTummy').checked = Boolean(state.checklist.tummy);
       document.getElementById('chkBath').checked = Boolean(state.checklist.bath);
       document.getElementById('chkWalk').checked = Boolean(state.checklist.walk);
-      applyRoleUI();
     }
 
     function saveAndCalc() {
@@ -766,12 +779,6 @@
       document.getElementById('syncDrawer').classList.toggle('open');
     }
 
-    function setRole(r) {
-      state.role = r;
-      applyRoleUI();
-      saveStorage(state);
-    }
-
     function adjustMl(delta) {
       const inp = document.getElementById('feedMl');
       inp.value = Math.max(10, (Number(inp.value) || 0) + Number(delta));
@@ -801,7 +808,7 @@
         time: formatHHMM(entryDate),
         ml,
         type,
-        by: state.role,
+        by: userName,
         tags: [...activeTags]
       });
 
@@ -821,7 +828,7 @@
         date: formatDateKey(now),
         time: formatHHMM(now),
         type,
-        by: state.role
+        by: userName
       });
       sortEntries();
       saveStorage(state);
@@ -863,14 +870,14 @@
     function exportData() {
       const code = JSON.stringify(state);
       if (navigator.clipboard) {
-        navigator.clipboard.writeText(code).then(() => alert('Код базы скопирован! Перешли его жене в Telegram.'));
+        navigator.clipboard.writeText(code).then(() => alert('Код базы скопирован!'));
       } else {
         prompt('Скопируй код базы:', code);
       }
     }
 
     function importData() {
-      const raw = prompt('Вставь скопированный от жены код базы:');
+      const raw = prompt('Вставь код базы данных:');
       if (raw) {
         try {
           state = sanitizeState(JSON.parse(raw));
@@ -882,7 +889,6 @@
       }
     }
 
-    // Инициализация при старте
     const todayKey = formatDateKey(new Date());
     if (!state.checklist || state.checklist.date !== todayKey) {
       state.checklist = { date: todayKey, d3: false, tummy: false, bath: false, walk: false };
