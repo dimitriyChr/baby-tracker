@@ -7,9 +7,9 @@ app.use(express.json());
 app.use(cors());
 
 // Вставь сюда токен, который тебе дал @BotFather
-const TOKEN = process.env.TELEGRAM_TOKEN || 'ТВОЙ_ТОКЕН_БОТА_ОТ_BOTFATHER';
+const TOKEN = process.env.TELEGRAM_TOKEN || '8716441672:AAFyB79l3qiNoIGS5bkTs-jko9klCB-iz8w';
 // Вставь сюда ссылку на свой сайт с GitHub Pages
-const WEB_APP_URL = process.env.WEB_APP_URL || 'https://ТВОЙ-АККАУНТ.github.io/ТВОЙ-РЕПОЗИТОРИЙ/';
+const WEB_APP_URL = process.env.WEB_APP_URL || 'https://dimitriychr.github.io/baby-tracker/';
 
 // Инициализируем бота (polling — режим постоянного опроса)
 const bot = new TelegramBot(TOKEN, { polling: true });
@@ -19,7 +19,7 @@ bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   const userName = msg.from.first_name || 'Родитель';
 
-  bot.sendMessage(chatId, `Привет, ${userName}! 🍼 Добро пожаловать в трекер кормлений и ухода за малышкой. Нажми на кнопку ниже, чтобы открыть приложение:`, {
+  bot.sendMessage(chatId, `Привет, ${userName}! 🍼 Добро пожаловать в трекер кормлений и ухода за малышом. Нажми на кнопку ниже, чтобы открыть приложение:`, {
     reply_markup: {
       inline_keyboard: [
         [
