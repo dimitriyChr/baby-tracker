@@ -190,4 +190,709 @@
       width: 100%;
       margin-top: 12px;
       font-size: 1rem;
-      min-height
+      min-height: 50px;
+    }
+    .chip {
+      padding: 8px 12px;
+      border-radius: 99px;
+      font-size: 0.8rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .log-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    .log-item:last-child { border-bottom: none; }
+    .time-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--bg);
+      border: 1px dashed var(--accent);
+      padding: 5px 9px;
+      border-radius: 8px;
+      font-weight: 800;
+      color: var(--text);
+      cursor: pointer;
+      margin-right: 6px;
+    }
+    .del-btn {
+      background: none;
+      border: none;
+      color: var(--danger);
+      font-size: 1.15rem;
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    .check-row input { width: 22px; height: 22px; }
+    .time-box {
+      margin-top: 10px;
+      padding: 10px;
+      background: rgba(15, 23, 42, 0.35);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+    [data-theme="light"] .time-box { background: #f8fafc; }
+
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 10000;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-box {
+      background: var(--card);
+      border: 1px solid var(--accent);
+      border-radius: 18px;
+      padding: 16px;
+      width: 100%;
+      max-width: 340px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="appRoot">
+    <header>
+      <div class="title-wrap">
+        <h1>🍼 Трекер малышки</h1>
+        <div class="age-badge" id="ageBadge">Возраст: укажите дату во вкладке «Нормы»</div>
+      </div>
+      <div class="header-actions">
+        <button type="button" class="icon-btn" onclick="toggleSyncDrawer()">Параметры</button>
+        <button type="button" class="icon-btn" id="themeBtn" onclick="toggleTheme()">🌙</button>
+      </div>
+    </header>
+
+    <div class="sync-drawer" id="syncDrawer">
+      <div class="card-title"><span>👤 Кто делает запись</span></div>
+      <label>Выбери свой профиль:</label>
+      <div class="grid-2" style="margin-bottom:8px;">
+        <button type="button" class="btn" id="rolePapa" onclick="setRole('👨 Папа')">👨 Папа</button>
+        <button type="button" class="btn" id="roleMama" onclick="setRole('👩 Мама')">👩 Мама</button>
+      </div>
+      <button type="button" class="btn" onclick="toggleSyncDrawer()">Закрыть</button>
+    </div>
+
+    <nav class="tabs">
+      <button type="button" class="tab-btn active" id="tabBtn-feed" onclick="switchTab('feed')">🍼 Кормление</button>
+      <button type="button" class="tab-btn" id="tabBtn-calc" onclick="switchTab('calc')">🧮 Нормы</button>
+      <button type="button" class="tab-btn" id="tabBtn-diary" onclick="switchTab('diary')">🧷 Дневник</button>
+    </nav>
+
+    <!-- ВКЛАДКА 1 -->
+    <div id="tab-feed" class="tab-pane active">
+      <div class="card">
+        <div class="card-title">
+          <span>До следующего кормления</span>
+          <span id="nextFeedTime" style="color:var(--text)">--:--</span>
+        </div>
+        <div class="timer-display" id="countdown">Нет записей</div>
+        <div style="text-align:center; font-size:0.8rem; color:var(--muted);" id="todayTotal">Съедено за сегодня: 0 мл</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Записать кормление</div>
+        <div class="grid-2">
+          <div>
+            <label>Объём (мл)</label>
+            <input type="number" id="feedMl" value="90" inputmode="numeric">
+          </div>
+          <div>
+            <label>Тип питания</label>
+            <select id="feedType">
+              <option value="Смесь">🍼 Смесь</option>
+              <option value="ГВ / Молоко">🤱 ГВ / Молоко</option>
+              <option value="Водичка">💧 Водичка</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button type="button" class="btn" onclick="adjustMl(-30)">-30</button>
+          <button type="button" class="btn" onclick="adjustMl(-10)">-10</button>
+          <button type="button" class="btn" onclick="setNormMl()">Норма</button>
+          <button type="button" class="btn" onclick="adjustMl(10)">+10</button>
+          <button type="button" class="btn" onclick="adjustMl(30)">+30</button>
+        </div>
+
+        <div class="time-box">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+            <label style="margin:0; font-weight:700; color:var(--text);">⏰ Время кормления:</label>
+            <input type="time" id="feedTimeInput" oninput="onTimeManualInput()" style="width:135px; padding:6px 10px; text-align:center;">
+          </div>
+          <div class="btn-row" style="margin-top:8px;">
+            <button type="button" class="btn btn-sm" onclick="setTimeNow()" style="border-color:var(--mint); color:var(--mint);">Сейчас</button>
+            <button type="button" class="btn btn-sm" onclick="shiftTime(-15)">-15 мин</button>
+            <button type="button" class="btn btn-sm" onclick="shiftTime(-30)">-30 мин</button>
+            <button type="button" class="btn btn-sm" onclick="shiftTime(-60)">-1 час</button>
+          </div>
+        </div>
+
+        <div class="btn-row" style="margin-top:10px;">
+          <button type="button" class="chip" onclick="toggleTag(this, 'Уснула 😴')">Уснула 😴</button>
+          <button type="button" class="chip" onclick="toggleTag(this, 'Срыгнула 💧')">Срыгнула 💧</button>
+          <button type="button" class="chip" onclick="toggleTag(this, 'Капризничала 🥺')">Капризничала 🥺</button>
+        </div>
+
+        <button type="button" class="btn btn-primary" onclick="addFeed()">✅ Записать кормление</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>Журнал за сегодня (жми на время ✏️)</span>
+          <span style="font-size:0.72rem; text-transform:none; color:var(--mint);">Работает ⚡</span>
+        </div>
+        <div id="feedLog"></div>
+      </div>
+    </div>
+
+    <!-- ВКЛАДКА 2 -->
+    <div id="tab-calc" class="tab-pane">
+      <div class="card">
+        <div class="card-title">Параметры малышки</div>
+        <div class="grid-2">
+          <div>
+            <label>Дата рождения</label>
+            <input type="date" id="birthDate" onchange="saveAndCalc()">
+          </div>
+          <div>
+            <label>Текущий вес (г)</label>
+            <input type="number" id="currentWeight" value="3800" inputmode="numeric" oninput="saveAndCalc()" onchange="saveAndCalc()">
+          </div>
+          <div>
+            <label>Вес при рождении (г)</label>
+            <input type="number" id="birthWeight" value="3300" inputmode="numeric" oninput="saveAndCalc()" onchange="saveAndCalc()">
+          </div>
+          <div>
+            <label>Интервал (часов)</label>
+            <select id="feedInterval" onchange="saveAndCalc()">
+              <option value="2.5">2.5 часа (9–10 раз)</option>
+              <option value="3" selected>3 часа (8 раз)</option>
+              <option value="3.5">3.5 часа (7 раз)</option>
+              <option value="4">4 часа (6 раз)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Расчётная норма</div>
+        <div class="grid-2">
+          <div class="stat-box">
+            <div class="stat-val" id="dailyNorm">-- мл</div>
+            <div class="stat-lbl">Суточный объём</div>
+          </div>
+          <div class="stat-box mint">
+            <div class="stat-val" id="singleNorm">-- мл</div>
+            <div class="stat-lbl">Разовая порция</div>
+          </div>
+        </div>
+        <div class="formula-hint" id="formulaHint"></div>
+        <div class="scoop-box" id="scoopHint"></div>
+      </div>
+    </div>
+
+    <!-- ВКЛАДКА 3 -->
+    <div id="tab-diary" class="tab-pane">
+      <div class="card">
+        <div class="card-title">Подгузники за сегодня</div>
+        <div class="grid-3">
+          <button type="button" class="btn" onclick="addDiaper('💧 Попис')">💧 Попис (<span id="cntPee">0</span>)</button>
+          <button type="button" class="btn" onclick="addDiaper('💩 Покак')">💩 Покак (<span id="cntPoop">0</span>)</button>
+          <button type="button" class="btn" onclick="addDiaper('⚡ Комбо')">⚡ Комбо (<span id="cntMix">0</span>)</button>
+        </div>
+        <div id="diaperLog" style="margin-top:10px;"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Ежедневный чек-лист</div>
+        <label class="check-row"><input type="checkbox" id="chkD3" onchange="saveChecklist()"> Дать Витамин D3</label>
+        <label class="check-row"><input type="checkbox" id="chkTummy" onchange="saveChecklist()"> Выкладывание на животик</label>
+        <label class="check-row"><input type="checkbox" id="chkBath" onchange="saveChecklist()"> Купание / гигиена</label>
+        <label class="check-row"><input type="checkbox" id="chkWalk" onchange="saveChecklist()"> Прогулка / проветривание</label>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Отчёт и обмен с женой</div>
+        <button type="button" class="btn btn-primary" onclick="copyReport()" style="margin-top:0;">📋 Скопировать сводку за сутки</button>
+        <div class="btn-row" style="margin-top:10px;">
+          <button type="button" class="btn" onclick="exportData()">📤 Экспорт базы</button>
+          <button type="button" class="btn" onclick="importData()">📥 Импорт</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- МОДАЛКА -->
+    <div class="modal-backdrop" id="timeModal">
+      <div class="modal-box">
+        <div class="card-title"><span>⏰ Изменить время записи</span></div>
+        <input type="time" id="modalTimeInput" style="font-size:1.3rem; text-align:center; margin:8px 0 14px;">
+        <div class="btn-row">
+          <button type="button" class="btn" onclick="closeTimeModal()">Отмена</button>
+          <button type="button" class="btn" onclick="saveEditedTime()" style="background:var(--accent);color:#fff;border:none;">Сохранить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STATE_KEY = 'baby_tracker_pro_v9';
+
+    function pad2(n) { return String(n).padStart(2, '0'); }
+    function formatHHMM(dateObj) {
+      const d = (dateObj instanceof Date && !isNaN(dateObj)) ? dateObj : new Date();
+      return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    }
+    function formatDateKey(dateObj) {
+      const d = (dateObj instanceof Date && !isNaN(dateObj)) ? dateObj : new Date();
+      return pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) + '.' + d.getFullYear();
+    }
+
+    function defaultState() {
+      return {
+        theme: 'dark',
+        role: '👨 Папа',
+        birthDate: '',
+        currentWeight: 3800,
+        birthWeight: 3300,
+        interval: 3,
+        feeds: [],
+        diapers: [],
+        checklist: { date: formatDateKey(new Date()), d3: false, tummy: false, bath: false, walk: false }
+      };
+    }
+
+    function sanitizeState(raw) {
+      const def = defaultState();
+      if (!raw || typeof raw !== 'object') return def;
+      return {
+        theme: raw.theme === 'light' ? 'light' : 'dark',
+        role: raw.role || '👨 Папа',
+        birthDate: raw.birthDate || '',
+        currentWeight: Number(raw.currentWeight) || 3800,
+        birthWeight: Number(raw.birthWeight) || 3300,
+        interval: Number(raw.interval) || 3,
+        feeds: Array.isArray(raw.feeds) ? raw.feeds : [],
+        diapers: Array.isArray(raw.diapers) ? raw.diapers : [],
+        checklist: (raw.checklist && typeof raw.checklist === 'object') ? {
+          date: raw.checklist.date || formatDateKey(new Date()),
+          d3: Boolean(raw.checklist.d3),
+          tummy: Boolean(raw.checklist.tummy),
+          bath: Boolean(raw.checklist.bath),
+          walk: Boolean(raw.checklist.walk)
+        } : def.checklist
+      };
+    }
+
+    function loadStorage() {
+      try {
+        const raw = localStorage.getItem(STATE_KEY);
+        if (raw) return sanitizeState(JSON.parse(raw));
+      } catch (e) {}
+      return defaultState();
+    }
+
+    function saveStorage(data) {
+      try { localStorage.setItem(STATE_KEY, JSON.stringify(data)); } catch (e) {}
+    }
+
+    let state = loadStorage();
+    let activeTags = [];
+    let currentSingleNorm = 90;
+    let customTimeEdited = false;
+    let editingTarget = null;
+
+    function buildTimestampFromHHMM(hhmm, baseTimestamp) {
+      const base = baseTimestamp ? new Date(baseTimestamp) : new Date();
+      if (!hhmm || typeof hhmm !== 'string' || !hhmm.includes(':')) return Date.now();
+      const parts = hhmm.split(':');
+      const h = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (isNaN(h) || isNaN(m)) return Date.now();
+      const candidate = new Date(base);
+      candidate.setHours(h, m, 0, 0);
+      if (!baseTimestamp && candidate.getTime() - Date.now() > 10 * 60 * 1000) {
+        candidate.setDate(candidate.getDate() - 1);
+      }
+      return candidate.getTime();
+    }
+
+    function sortEntries() {
+      state.feeds.sort((a, b) => (b.ts || b.id) - (a.ts || a.id));
+      state.diapers.sort((a, b) => (b.ts || b.id) - (a.ts || a.id));
+    }
+
+    function setTimeNow() {
+      const inp = document.getElementById('feedTimeInput');
+      if (inp) inp.value = formatHHMM(new Date());
+      customTimeEdited = false;
+    }
+
+    function shiftTime(deltaMinutes) {
+      const inp = document.getElementById('feedTimeInput');
+      if (!inp) return;
+      const baseTs = customTimeEdited ? buildTimestampFromHHMM(inp.value) : Date.now();
+      const shifted = new Date(baseTs + Number(deltaMinutes) * 60000);
+      inp.value = formatHHMM(shifted);
+      customTimeEdited = true;
+    }
+
+    function onTimeManualInput() { customTimeEdited = true; }
+
+    function applyTheme() {
+      document.documentElement.setAttribute('data-theme', state.theme);
+      const btn = document.getElementById('themeBtn');
+      if (btn) btn.textContent = state.theme === 'dark' ? '🌙' : '☀️';
+    }
+
+    function applyRoleUI() {
+      const p = document.getElementById('rolePapa');
+      const m = document.getElementById('roleMama');
+      if (p) p.style.borderColor = state.role.includes('Папа') ? 'var(--accent)' : 'var(--border)';
+      if (m) m.style.borderColor = state.role.includes('Мама') ? 'var(--accent)' : 'var(--border)';
+    }
+
+    function syncInputsFromState() {
+      document.getElementById('birthDate').value = state.birthDate || '';
+      document.getElementById('currentWeight').value = state.currentWeight || 3800;
+      document.getElementById('birthWeight').value = state.birthWeight || 3300;
+      document.getElementById('feedInterval').value = state.interval || 3;
+      document.getElementById('chkD3').checked = Boolean(state.checklist.d3);
+      document.getElementById('chkTummy').checked = Boolean(state.checklist.tummy);
+      document.getElementById('chkBath').checked = Boolean(state.checklist.bath);
+      document.getElementById('chkWalk').checked = Boolean(state.checklist.walk);
+      applyRoleUI();
+    }
+
+    function saveAndCalc() {
+      state.birthDate = document.getElementById('birthDate').value;
+      state.currentWeight = Number(document.getElementById('currentWeight').value) || 3500;
+      state.birthWeight = Number(document.getElementById('birthWeight').value) || 3300;
+      state.interval = Number(document.getElementById('feedInterval').value) || 3;
+
+      let ageDays = 30;
+      if (state.birthDate) {
+        const diff = Date.now() - new Date(state.birthDate).getTime();
+        ageDays = Math.max(1, Math.floor(diff / 86400000));
+        const months = Math.floor(ageDays / 30);
+        const remDays = ageDays % 30;
+        document.getElementById('ageBadge').textContent = months > 0
+          ? 'Возраст: ' + months + ' мес. ' + remDays + ' дн. (' + ageDays + ' дн.)'
+          : 'Возраст: ' + ageDays + ' дн.';
+      }
+
+      let daily = 0;
+      let method = '';
+      if (ageDays <= 10) {
+        const k = state.birthWeight < 3200 ? 70 : 80;
+        const fin = ageDays * k;
+        const zai = 0.02 * state.birthWeight * ageDays;
+        daily = Math.round((fin + zai) / 2);
+        method = 'Первые 10 дней: среднее по Финкельштейну (' + fin + ' мл) и Зайцевой (' + Math.round(zai) + ' мл).';
+      } else if (ageDays <= 60) {
+        daily = Math.round(state.currentWeight / 5);
+        method = 'От 10 дней до 2 мес: объёмный метод (1/5 от текущего веса).';
+      } else if (ageDays <= 120) {
+        daily = Math.round(state.currentWeight / 6);
+        method = '2–4 месяца: 1/6 от массы тела.';
+      } else if (ageDays <= 180) {
+        daily = Math.round(state.currentWeight / 7);
+        method = '4–6 месяцев: 1/7 от массы тела.';
+      } else {
+        daily = Math.min(1000, Math.round(state.currentWeight / 8));
+        method = 'Старше 6 мес: 1/8 от массы тела (до 1000 мл).';
+      }
+
+      const feedsPerDay = Math.round(24 / state.interval);
+      currentSingleNorm = Math.round(daily / feedsPerDay / 5) * 5;
+
+      document.getElementById('dailyNorm').textContent = daily + ' мл';
+      document.getElementById('singleNorm').textContent = currentSingleNorm + ' мл';
+      document.getElementById('formulaHint').textContent = method + ' Кормлений в сутки: ~' + feedsPerDay + '.';
+
+      const scoops = Math.max(1, Math.round(currentSingleNorm / 30));
+      const waterMl = scoops * 30;
+      document.getElementById('scoopHint').innerHTML =
+        '<span>🥄 <b>Шпаргалка по смеси:</b></span><span>' + waterMl + ' мл воды + <b>' + scoops + ' лож.</b></span>';
+
+      saveStorage(state);
+    }
+
+    function isTodayEntry(entry) {
+      const todayKey = formatDateKey(new Date());
+      if (entry.date === todayKey) return true;
+      if (entry.ts) return formatDateKey(new Date(entry.ts)) === todayKey;
+      return false;
+    }
+
+    function renderLogs() {
+      sortEntries();
+      const todayFeeds = state.feeds.filter(isTodayEntry);
+      const totalMl = todayFeeds.reduce((s, f) => s + (Number(f.ml) || 0), 0);
+      document.getElementById('todayTotal').textContent =
+        'Съедено за сегодня: ' + totalMl + ' мл (' + todayFeeds.length + ' кормл.)';
+
+      const feedLog = document.getElementById('feedLog');
+      feedLog.innerHTML = todayFeeds.length ? todayFeeds.map(f => `
+        <div class="log-item">
+          <div>
+            <button type="button" class="time-badge" onclick="openTimeModal('feeds', '${f.id}')">${f.time} ✏️</button>
+            <span style="color:var(--accent);font-weight:700">${f.ml} мл</span> (${f.type})
+            <span style="font-size:0.75rem;color:var(--muted);margin-left:4px;">${f.by || ''}</span>
+            ${f.tags && f.tags.length ? `<div style="font-size:0.75rem;color:var(--muted);margin-top:3px;">${f.tags.join(', ')}</div>` : ''}
+          </div>
+          <button type="button" class="del-btn" onclick="deleteEntry('feeds', '${f.id}')">✕</button>
+        </div>
+      `).join('') : '<div style="color:var(--muted);font-size:0.85rem;">Записей за сегодня пока нет</div>';
+
+      const todayDiapers = state.diapers.filter(isTodayEntry);
+      document.getElementById('cntPee').textContent = todayDiapers.filter(d => d.type && d.type.includes('Попис')).length;
+      document.getElementById('cntPoop').textContent = todayDiapers.filter(d => d.type && d.type.includes('Покак')).length;
+      document.getElementById('cntMix').textContent = todayDiapers.filter(d => d.type && d.type.includes('Комбо')).length;
+
+      document.getElementById('diaperLog').innerHTML = todayDiapers.slice(0, 8).map(d => `
+        <div class="log-item">
+          <span>
+            <button type="button" class="time-badge" onclick="openTimeModal('diapers', '${d.id}')">${d.time} ✏️</button>
+            ${d.type} <small style="color:var(--muted)">${d.by || ''}</small>
+          </span>
+          <button type="button" class="del-btn" onclick="deleteEntry('diapers', '${d.id}')">✕</button>
+        </div>
+      `).join('');
+
+      updateTimer();
+    }
+
+    function updateTimer() {
+      const inp = document.getElementById('feedTimeInput');
+      if (!customTimeEdited && inp && document.activeElement !== inp) {
+        inp.value = formatHHMM(new Date());
+      }
+
+      if (!state.feeds.length) {
+        document.getElementById('countdown').textContent = 'Нет записей';
+        document.getElementById('nextFeedTime').textContent = '--:--';
+        return;
+      }
+      const last = state.feeds[0].ts || state.feeds[0].id;
+      const next = last + state.interval * 3600 * 1000;
+      const nextDate = new Date(next);
+      document.getElementById('nextFeedTime').textContent = formatHHMM(nextDate);
+
+      const diff = next - Date.now();
+      const el = document.getElementById('countdown');
+      if (diff <= 0) {
+        el.textContent = 'Пора кормить! 🍼';
+        el.style.color = 'var(--accent)';
+      } else {
+        const h = Math.floor(diff / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        const s = Math.floor((diff % 60000) / 1000);
+        el.textContent = h + 'ч ' + pad2(m) + 'м ' + pad2(s) + 'с';
+        el.style.color = 'var(--mint)';
+      }
+    }
+
+    function openTimeModal(listName, id) {
+      const list = state[listName];
+      if (!Array.isArray(list)) return;
+      const item = list.find(i => String(i.id) === String(id));
+      if (!item) return;
+      editingTarget = { listName, id: String(id) };
+      document.getElementById('modalTimeInput').value = item.time || formatHHMM(new Date());
+      document.getElementById('timeModal').classList.add('open');
+    }
+
+    function closeTimeModal() {
+      editingTarget = null;
+      document.getElementById('timeModal').classList.remove('open');
+    }
+
+    function saveEditedTime() {
+      if (!editingTarget) return;
+      const val = document.getElementById('modalTimeInput').value;
+      const list = state[editingTarget.listName];
+      const item = list && list.find(i => String(i.id) === editingTarget.id);
+      if (item && val && val.includes(':')) {
+        item.time = val;
+        item.ts = buildTimestampFromHHMM(val, item.ts);
+        item.date = formatDateKey(new Date(item.ts));
+        sortEntries();
+        saveStorage(state);
+        renderLogs();
+      }
+      closeTimeModal();
+    }
+
+    function switchTab(tab) {
+      ['feed', 'calc', 'diary'].forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+        document.getElementById('tabBtn-' + t).classList.toggle('active', t === tab);
+      });
+    }
+
+    function toggleTheme() {
+      state.theme = state.theme === 'dark' ? 'light' : 'dark';
+      applyTheme();
+      saveStorage(state);
+    }
+
+    function toggleSyncDrawer() {
+      document.getElementById('syncDrawer').classList.toggle('open');
+    }
+
+    function setRole(r) {
+      state.role = r;
+      applyRoleUI();
+      saveStorage(state);
+    }
+
+    function adjustMl(delta) {
+      const inp = document.getElementById('feedMl');
+      inp.value = Math.max(10, (Number(inp.value) || 0) + Number(delta));
+    }
+
+    function setNormMl() {
+      document.getElementById('feedMl').value = currentSingleNorm;
+    }
+
+    function toggleTag(btn, tag) {
+      btn.classList.toggle('active');
+      if (activeTags.includes(tag)) activeTags = activeTags.filter(t => t !== tag);
+      else activeTags.push(tag);
+    }
+
+    function addFeed() {
+      const ml = Number(document.getElementById('feedMl').value) || 0;
+      const type = document.getElementById('feedType').value;
+      const timeVal = document.getElementById('feedTimeInput').value;
+      const entryTs = customTimeEdited ? buildTimestampFromHHMM(timeVal) : Date.now();
+      const entryDate = new Date(entryTs);
+
+      state.feeds.unshift({
+        id: Date.now(),
+        ts: entryTs,
+        date: formatDateKey(entryDate),
+        time: formatHHMM(entryDate),
+        ml,
+        type,
+        by: state.role,
+        tags: [...activeTags]
+      });
+
+      activeTags = [];
+      document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      setTimeNow();
+      sortEntries();
+      saveStorage(state);
+      renderLogs();
+    }
+
+    function addDiaper(type) {
+      const now = new Date();
+      state.diapers.unshift({
+        id: Date.now(),
+        ts: now.getTime(),
+        date: formatDateKey(now),
+        time: formatHHMM(now),
+        type,
+        by: state.role
+      });
+      sortEntries();
+      saveStorage(state);
+      renderLogs();
+    }
+
+    function deleteEntry(listName, id) {
+      state[listName] = state[listName].filter(i => String(i.id) !== String(id));
+      saveStorage(state);
+      renderLogs();
+    }
+
+    function saveChecklist() {
+      state.checklist.d3 = document.getElementById('chkD3').checked;
+      state.checklist.tummy = document.getElementById('chkTummy').checked;
+      state.checklist.bath = document.getElementById('chkBath').checked;
+      state.checklist.walk = document.getElementById('chkWalk').checked;
+      saveStorage(state);
+    }
+
+    function copyReport() {
+      const tf = state.feeds.filter(isTodayEntry);
+      const td = state.diapers.filter(isTodayEntry);
+      const total = tf.reduce((s, f) => s + (Number(f.ml) || 0), 0);
+      const text = [
+        '🍼 Сводка малышки за ' + formatDateKey(new Date()) + ':',
+        '• Съедено: ' + total + ' мл (' + tf.length + ' кормлений)',
+        '• Подгузники: всего ' + td.length + ' шт.',
+        '• Витамин D3: ' + (state.checklist.d3 ? 'Да ✅' : 'Нет'),
+        '• Вес: ' + state.currentWeight + ' г'
+      ].join('\n');
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => alert('Сводка скопирована!'));
+      } else {
+        prompt('Скопируйте сводку:', text);
+      }
+    }
+
+    function exportData() {
+      const code = JSON.stringify(state);
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(code).then(() => alert('Код базы скопирован! Перешли его жене в Telegram.'));
+      } else {
+        prompt('Скопируй код базы:', code);
+      }
+    }
+
+    function importData() {
+      const raw = prompt('Вставь скопированный от жены код базы:');
+      if (raw) {
+        try {
+          state = sanitizeState(JSON.parse(raw));
+          saveStorage(state);
+          location.reload();
+        } catch (e) {
+          alert('Ошибка формата данных');
+        }
+      }
+    }
+
+    // Инициализация при старте
+    const todayKey = formatDateKey(new Date());
+    if (!state.checklist || state.checklist.date !== todayKey) {
+      state.checklist = { date: todayKey, d3: false, tummy: false, bath: false, walk: false };
+    }
+
+    applyTheme();
+    setTimeNow();
+    syncInputsFromState();
+    saveAndCalc();
+    renderLogs();
+    setInterval(updateTimer, 1000);
+  </script>
+</body>
+</html>
