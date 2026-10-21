@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#0f172a">
-  <title>Трекер малышки Cloud</title>
+  <title>Трекер малышки Pro</title>
   <style>
     :root {
       --bg: #0f172a;
@@ -72,13 +72,10 @@
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: var(--muted);
+      background: var(--mint);
       display: inline-block;
+      box-shadow: 0 0 8px var(--mint);
     }
-    .sync-dot.online { background: var(--mint); box-shadow: 0 0 8px var(--mint); }
-    .sync-dot.busy { background: #fbbf24; }
-    .sync-dot.err { background: var(--danger); }
-
     .sync-drawer {
       display: none;
       background: var(--card);
@@ -293,31 +290,27 @@
       </div>
       <div class="header-actions">
         <button type="button" class="icon-btn" onclick="app.toggleSyncDrawer()">
-          <span class="sync-dot" id="syncDot"></span>
-          <span>Облако</span>
+          <span class="sync-dot"></span>
+          <span>Связь</span>
         </button>
         <button type="button" class="icon-btn" id="themeBtn" onclick="app.toggleTheme()">🌙</button>
       </div>
     </header>
 
-    <!-- ПАНЕЛЬ СИНХРОНИЗАЦИИ -->
+    <!-- ПАНЕЛЬ БЫСТРОГО ОБМЕНА С ЖЕНОЙ -->
     <div class="sync-drawer" id="syncDrawer">
       <div class="card-title">
-        <span>☁️ Синхронизация (Папа + Мама)</span>
-        <span id="syncStatusText" style="color:var(--mint); text-transform:none;">Локальный режим</span>
+        <span>🔄 Синхронизация с женой</span>
       </div>
       <label>Кто отмечает с этого телефона:</label>
       <div class="grid-2" style="margin-bottom:8px;">
         <button type="button" class="btn" id="rolePapa" onclick="app.setRole('👨 Папа')">👨 Папа</button>
         <button type="button" class="btn" id="roleMama" onclick="app.setRole('👩 Мама')">👩 Мама</button>
       </div>
-      <label>Общий код семьи (одинаковый для обоих телефонов):</label>
-      <input type="text" id="syncCodeInput" placeholder="Нажми «Создать облако» или вставь код">
-      <div class="btn-row">
-        <button type="button" class="btn" onclick="app.createCloud()" style="border-color:var(--mint);color:var(--mint);">✨ Создать облако</button>
-        <button type="button" class="btn" onclick="app.connectCloud()" style="border-color:var(--accent);color:var(--accent);">🔗 Подключить</button>
-        <button type="button" class="btn" onclick="app.syncNow()">🔄 Обновить</button>
+      <div style="font-size:0.78rem; color:var(--muted); margin-bottom:10px; line-height:1.4;">
+        💡 Чтобы передать данные жене в Telegram, нажми <b>«Экспорт базы»</b> внизу вкладки «Дневник», скинь ей текст, а она пусть нажмет <b>«Импорт»</b>. Все данные объединятся без потерь!
       </div>
+      <button type="button" class="btn" onclick="app.toggleSyncDrawer()">Закрыть</button>
     </div>
 
     <!-- ВКЛАДКИ -->
@@ -388,7 +381,7 @@
       <div class="card">
         <div class="card-title">
           <span>Журнал за сегодня (жми на время ✏️)</span>
-          <span id="lastSyncClock" style="font-size:0.72rem; text-transform:none;">Активно ⚡</span>
+          <span id="lastSyncClock" style="font-size:0.72rem; text-transform:none;">Работает ⚡</span>
         </div>
         <div id="feedLog"></div>
       </div>
@@ -401,19 +394,19 @@
         <div class="grid-2">
           <div>
             <label>Дата рождения</label>
-            <input type="date" id="birthDate" onchange="app.saveAndCalc(true)">
+            <input type="date" id="birthDate" onchange="app.saveAndCalc()">
           </div>
           <div>
             <label>Текущий вес (г)</label>
-            <input type="number" id="currentWeight" value="3800" inputmode="numeric" oninput="app.saveAndCalc(false)" onchange="app.saveAndCalc(true)">
+            <input type="number" id="currentWeight" value="3800" inputmode="numeric" oninput="app.saveAndCalc()" onchange="app.saveAndCalc()">
           </div>
           <div>
             <label>Вес при рождении (г)</label>
-            <input type="number" id="birthWeight" value="3300" inputmode="numeric" oninput="app.saveAndCalc(false)" onchange="app.saveAndCalc(true)">
+            <input type="number" id="birthWeight" value="3300" inputmode="numeric" oninput="app.saveAndCalc()" onchange="app.saveAndCalc()">
           </div>
           <div>
             <label>Интервал (часов)</label>
-            <select id="feedInterval" onchange="app.saveAndCalc(true)">
+            <select id="feedInterval" onchange="app.saveAndCalc()">
               <option value="2.5">2.5 часа (9–10 раз)</option>
               <option value="3" selected>3 часа (8 раз)</option>
               <option value="3.5">3.5 часа (7 раз)</option>
@@ -461,11 +454,11 @@
       </div>
 
       <div class="card">
-        <div class="card-title">Отчёт и резервная копия</div>
+        <div class="card-title">Отчёт и обмен с женой</div>
         <button type="button" class="btn btn-primary" onclick="app.copyReport()" style="margin-top:0;">📋 Скопировать сводку за сутки</button>
         <div class="btn-row" style="margin-top:10px;">
-          <button type="button" class="btn" onclick="app.exportData()">💾 Сохранить базу</button>
-          <button type="button" class="btn" onclick="app.importData()">📂 Восстановить</button>
+          <button type="button" class="btn" onclick="app.exportData()">📤 Экспорт базы</button>
+          <button type="button" class="btn" onclick="app.importData()">📥 Импорт</button>
         </div>
       </div>
     </div>
@@ -485,9 +478,7 @@
 
   <script>
     window.app = (function() {
-      const STATE_KEY = 'baby_tracker_pro_v5';
-      const CLOUD_API = 'https://jsonblob.com/api/jsonBlob';
-      const PROXY_URL = 'https://corsproxy.io/?' + encodeURIComponent(CLOUD_API);
+      const STATE_KEY = 'baby_tracker_pro_v6';
 
       function pad2(n) { return String(n).padStart(2, '0'); }
 
@@ -505,15 +496,12 @@
         return {
           theme: 'dark',
           role: '👨 Папа',
-          syncId: '',
-          updatedAt: 0,
           birthDate: '',
           currentWeight: 3800,
           birthWeight: 3300,
           interval: 3,
           feeds: [],
           diapers: [],
-          deletedIds: [],
           checklist: { date: formatDateKey(new Date()), d3: false, tummy: false, bath: false, walk: false }
         };
       }
@@ -524,15 +512,12 @@
         return {
           theme: raw.theme === 'light' ? 'light' : 'dark',
           role: raw.role || '👨 Папа',
-          syncId: raw.syncId || '',
-          updatedAt: Number(raw.updatedAt) || 0,
           birthDate: raw.birthDate || '',
           currentWeight: Number(raw.currentWeight) || 3800,
           birthWeight: Number(raw.birthWeight) || 3300,
           interval: Number(raw.interval) || 3,
           feeds: Array.isArray(raw.feeds) ? raw.feeds : [],
           diapers: Array.isArray(raw.diapers) ? raw.diapers : [],
-          deletedIds: Array.isArray(raw.deletedIds) ? raw.deletedIds : [],
           checklist: (raw.checklist && typeof raw.checklist === 'object') ? {
             date: raw.checklist.date || formatDateKey(new Date()),
             d3: Boolean(raw.checklist.d3),
@@ -558,7 +543,6 @@
       let state = loadStorage();
       let activeTags = [];
       let currentSingleNorm = 90;
-      let isSyncing = false;
       let customTimeEdited = false;
       let editingTarget = null;
 
@@ -600,127 +584,6 @@
 
       function onTimeManualInput() { customTimeEdited = true; }
 
-      function setSyncUI(status, text) {
-        const dot = document.getElementById('syncDot');
-        const st = document.getElementById('syncStatusText');
-        const clk = document.getElementById('lastSyncClock');
-        if (dot) dot.className = 'sync-dot ' + status;
-        if (st) st.textContent = text;
-        if (clk && status === 'online') clk.textContent = '☁️ ' + formatHHMM(new Date());
-      }
-
-      function mergeStates(local, remoteRaw) {
-        const remote = sanitizeState(remoteRaw);
-        const delSet = new Set([...(local.deletedIds || []), ...(remote.deletedIds || [])]);
-
-        const mergeList = (a = [], b = []) => {
-          const map = new Map();
-          [...a, ...b].forEach(item => {
-            if (item && item.id && !delSet.has(String(item.id))) {
-              const key = String(item.id);
-              const existing = map.get(key);
-              if (!existing || (item.editedAt || 0) >= (existing.editedAt || 0)) {
-                map.set(key, item);
-              }
-            }
-          });
-          return Array.from(map.values()).sort((x, y) => (y.ts || y.id) - (x.ts || x.id)).slice(0, 150);
-        };
-
-        const newer = (remote.updatedAt || 0) > (local.updatedAt || 0) ? remote : local;
-        const today = formatDateKey(new Date());
-        const lChk = local.checklist && local.checklist.date === today ? local.checklist : {};
-        const rChk = remote.checklist && remote.checklist.date === today ? remote.checklist : {};
-
-        return sanitizeState({
-          ...local,
-          birthDate: newer.birthDate || local.birthDate || remote.birthDate || '',
-          currentWeight: newer.currentWeight || local.currentWeight || 3800,
-          birthWeight: newer.birthWeight || local.birthWeight || 3300,
-          interval: newer.interval || local.interval || 3,
-          updatedAt: Math.max(local.updatedAt || 0, remote.updatedAt || 0),
-          feeds: mergeList(local.feeds, remote.feeds),
-          diapers: mergeList(local.diapers, remote.diapers),
-          deletedIds: Array.from(delSet).slice(-200),
-          checklist: {
-            date: today,
-            d3: Boolean(lChk.d3 || rChk.d3),
-            tummy: Boolean(lChk.tummy || rChk.tummy),
-            bath: Boolean(lChk.bath || rChk.bath),
-            walk: Boolean(lChk.walk || rChk.walk)
-          }
-        });
-      }
-
-      function getCloudUrl(code) {
-        const clean = (code || '').trim();
-        if (clean.startsWith('http')) return 'https://corsproxy.io/?' + encodeURIComponent(clean);
-        return 'https://corsproxy.io/?' + encodeURIComponent(CLOUD_API + '/' + clean);
-      }
-
-      async function createCloud() {
-        setSyncUI('busy', 'Создаём комнату...');
-        try {
-          state.updatedAt = Date.now();
-          const res = await fetch(PROXY_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify(state)
-          });
-          const loc = res.headers.get('Location') || res.headers.get('location') || '';
-          let id = loc.split('/').pop();
-          if (!id) {
-            // Фолбэк на случай чтения ID из тела ответа прокси
-            const data = await res.json().catch(() => ({}));
-            id = data.id || '';
-          }
-          if (!id) throw new Error('No ID');
-          
-          state.syncId = id;
-          document.getElementById('syncCodeInput').value = id;
-          saveStorage(state);
-          setSyncUI('online', 'Облако активно!');
-          if (navigator.clipboard) navigator.clipboard.writeText(id);
-          alert('Облако создано! Код скопирован:\n' + id + '\n\nОтправь этот код жене в Telegram.');
-        } catch (e) {
-          setSyncUI('err', 'Ошибка сети');
-          alert('Не удалось создать облако. Проверь интернет.');
-        }
-      }
-
-      async function syncWithCloud(pushChanges) {
-        if (!state.syncId || isSyncing) return;
-        isSyncing = true;
-        setSyncUI('busy', 'Синхронизация...');
-        const url = getCloudUrl(state.syncId);
-
-        try {
-          const res = await fetch(url, { headers: { 'Accept': 'application/json' }, cache: 'no-store' });
-          if (res.ok) {
-            const remote = await res.json();
-            state = mergeStates(state, remote);
-          }
-          if (pushChanges) {
-            state.updatedAt = Date.now();
-            await fetch(url, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-              body: JSON.stringify(state)
-            });
-          }
-          sortEntries();
-          saveStorage(state);
-          syncInputsFromState();
-          saveAndCalc(false);
-          renderLogs();
-          setSyncUI('online', 'Синхронизировано');
-        } catch (e) {
-          setSyncUI('err', 'Оффлайн (сохранено локально)');
-        } finally {
-          isSyncing = false;
-        }
-      }
-
       function applyTheme() {
         document.documentElement.setAttribute('data-theme', state.theme);
         const btn = document.getElementById('themeBtn');
@@ -743,11 +606,10 @@
         document.getElementById('chkTummy').checked = Boolean(state.checklist.tummy);
         document.getElementById('chkBath').checked = Boolean(state.checklist.bath);
         document.getElementById('chkWalk').checked = Boolean(state.checklist.walk);
-        document.getElementById('syncCodeInput').value = state.syncId || '';
         applyRoleUI();
       }
 
-      function saveAndCalc(triggerCloud) {
+      function saveAndCalc() {
         state.birthDate = document.getElementById('birthDate').value;
         state.currentWeight = Number(document.getElementById('currentWeight').value) || 3500;
         state.birthWeight = Number(document.getElementById('birthWeight').value) || 3300;
@@ -799,7 +661,6 @@
           '<span>🥄 <b>Шпаргалка по смеси:</b></span><span>' + waterMl + ' мл воды + <b>' + scoops + ' лож.</b></span>';
 
         saveStorage(state);
-        if (triggerCloud) syncWithCloud(true);
       }
 
       function isTodayEntry(entry) {
@@ -901,11 +762,9 @@
           item.time = val;
           item.ts = buildTimestampFromHHMM(val, item.ts);
           item.date = formatDateKey(new Date(item.ts));
-          item.editedAt = Date.now();
           sortEntries();
           saveStorage(state);
           renderLogs();
-          syncWithCloud(true);
         }
         closeTimeModal();
       }
@@ -918,19 +777,10 @@
       applyTheme();
       setTimeNow();
       syncInputsFromState();
-      saveAndCalc(false);
+      saveAndCalc();
       renderLogs();
-      if (state.syncId) {
-        setSyncUI('online', 'Облако подключено');
-        syncWithCloud(false);
-      } else {
-        setSyncUI('online', 'Локальный режим');
-      }
 
       setInterval(updateTimer, 1000);
-      setInterval(() => {
-        if (document.visibilityState === 'visible' && state.syncId) syncWithCloud(false);
-      }, 12000);
 
       return {
         switchTab(tab) {
@@ -969,7 +819,6 @@
           state.feeds.unshift({
             id: Date.now(),
             ts: entryTs,
-            editedAt: Date.now(),
             date: formatDateKey(entryDate),
             time: formatHHMM(entryDate),
             ml,
@@ -984,14 +833,12 @@
           sortEntries();
           saveStorage(state);
           renderLogs();
-          syncWithCloud(true);
         },
         addDiaper(type) {
           const now = new Date();
           state.diapers.unshift({
             id: Date.now(),
             ts: now.getTime(),
-            editedAt: now.getTime(),
             date: formatDateKey(now),
             time: formatHHMM(now),
             type,
@@ -1000,14 +847,11 @@
           sortEntries();
           saveStorage(state);
           renderLogs();
-          syncWithCloud(true);
         },
         deleteEntry(listName, id) {
-          state.deletedIds.push(String(id));
           state[listName] = state[listName].filter(i => String(i.id) !== String(id));
           saveStorage(state);
           renderLogs();
-          syncWithCloud(true);
         },
         openTimeModal,
         closeTimeModal,
@@ -1019,17 +863,7 @@
           state.checklist.bath = document.getElementById('chkBath').checked;
           state.checklist.walk = document.getElementById('chkWalk').checked;
           saveStorage(state);
-          syncWithCloud(true);
         },
-        createCloud,
-        connectCloud() {
-          const val = document.getElementById('syncCodeInput').value.trim();
-          if (!val) return alert('Введи код семьи от второго родителя');
-          state.syncId = val;
-          saveStorage(state);
-          syncWithCloud(true);
-        },
-        syncNow() { syncWithCloud(false); },
         copyReport() {
           const tf = state.feeds.filter(isTodayEntry);
           const td = state.diapers.filter(isTodayEntry);
@@ -1050,13 +884,13 @@
         exportData() {
           const code = JSON.stringify(state);
           if (navigator.clipboard) {
-            navigator.clipboard.writeText(code).then(() => alert('Код базы скопирован в буфер!'));
+            navigator.clipboard.writeText(code).then(() => alert('Код базы скопирован! Перешли его жене в Telegram.'));
           } else {
             prompt('Скопируй код базы:', code);
           }
         },
         importData() {
-          const raw = prompt('Вставь скопированный ранее код базы:');
+          const raw = prompt('Вставь скопированный от мужа код базы:');
           if (raw) {
             try {
               state = sanitizeState(JSON.parse(raw));
