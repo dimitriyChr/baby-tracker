@@ -291,24 +291,21 @@
       <div class="header-actions">
         <button type="button" class="icon-btn" onclick="app.toggleSyncDrawer()">
           <span class="sync-dot"></span>
-          <span>Связь</span>
+          <span>Параметры</span>
         </button>
         <button type="button" class="icon-btn" id="themeBtn" onclick="app.toggleTheme()">🌙</button>
       </div>
     </header>
 
-    <!-- ПАНЕЛЬ БЫСТРОГО ОБМЕНА С ЖЕНОЙ -->
+    <!-- ПАНЕЛЬ ВЫБОРА РОЛИ -->
     <div class="sync-drawer" id="syncDrawer">
       <div class="card-title">
-        <span>🔄 Синхронизация с женой</span>
+        <span>👤 Кто делает запись</span>
       </div>
-      <label>Кто отмечает с этого телефона:</label>
+      <label>Выбери свой профиль:</label>
       <div class="grid-2" style="margin-bottom:8px;">
         <button type="button" class="btn" id="rolePapa" onclick="app.setRole('👨 Папа')">👨 Папа</button>
         <button type="button" class="btn" id="roleMama" onclick="app.setRole('👩 Мама')">👩 Мама</button>
-      </div>
-      <div style="font-size:0.78rem; color:var(--muted); margin-bottom:10px; line-height:1.4;">
-        💡 Чтобы передать данные жене в Telegram, нажми <b>«Экспорт базы»</b> внизу вкладки «Дневник», скинь ей текст, а она пусть нажмет <b>«Импорт»</b>. Все данные объединятся без потерь!
       </div>
       <button type="button" class="btn" onclick="app.toggleSyncDrawer()">Закрыть</button>
     </div>
@@ -381,7 +378,7 @@
       <div class="card">
         <div class="card-title">
           <span>Журнал за сегодня (жми на время ✏️)</span>
-          <span id="lastSyncClock" style="font-size:0.72rem; text-transform:none;">Работает ⚡</span>
+          <span style="font-size:0.72rem; text-transform:none; color:var(--mint);">Работает ⚡</span>
         </div>
         <div id="feedLog"></div>
       </div>
