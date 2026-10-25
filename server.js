@@ -7,7 +7,7 @@ app.use(express.json());
 app.use(cors());
 
 // Вставь сюда токен, который тебе дал @BotFather
-const TOKEN = process.env.TELEGRAM_TOKEN || '8716441672:AAFyB79l3qiNoIGS5bkTs-jko9klCB-iz8w';
+const TOKEN = process.env.TELEGRAM_TOKEN || '8716441672:AAF2X5si4BTg86it-atRGUPpCqjj6V8b6sg';
 // Вставь сюда ссылку на свой сайт с GitHub Pages
 const WEB_APP_URL = process.env.WEB_APP_URL || 'https://dimitriychr.github.io/baby-tracker/';
 
