@@ -16,19 +16,23 @@ const databases = {};
 const chatToFamily = {};
 const subscribedChats = new Set();
 
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+// Формат времени ЧЧ:ММ (как в index.html)
 function getNowTime() {
-  return new Date().toLocaleTimeString('ru-RU', {
-    timeZone: 'Europe/Moscow',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+  const msk = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Moscow' }));
+  return pad2(msk.getHours()) + ':' + pad2(msk.getMinutes());
 }
 
+// Формат даты ДД.ММ.ГГГГ (строго как formatDateKey в index.html)
 function getTodayStr() {
-  return new Date().toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow' });
+  const msk = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Moscow' }));
+  return pad2(msk.getDate()) + '.' + pad2(msk.getMonth() + 1) + '.' + msk.getFullYear();
 }
 
-// === ОБЛАЧНЫЙ БЭКАП (активируется, если добавишь FIREBASE_URL на Render) ===
+// === ОБЛАЧНЫЙ БЭКАП ===
 async function loadFromCloud() {
   if (!FIREBASE_URL) return;
   try {
@@ -62,40 +66,53 @@ async function saveToCloud() {
   }
 }
 
-// Умное слияние с учетом удаленных записей
-function mergeArraysById(serverArr = [], clientArr = [], deletedIds = []) {
-  const deletedSet = new Set(deletedIds.map(String));
+// Умное слияние списков (строго по формату index.html: id, ts, editedAt)
+function mergeLists(serverArr = [], clientArr = [], deletedIds = []) {
+  const delSet = new Set(deletedIds.map(String));
   const map = new Map();
 
-  serverArr.forEach(item => {
-    const key = String(item.id || item.timestamp || `${item.date}_${item.time}`);
-    if (!deletedSet.has(key)) map.set(key, item);
+  [...serverArr, ...clientArr].forEach(item => {
+    if (item && item.id && !delSet.has(String(item.id))) {
+      const key = String(item.id);
+      const existing = map.get(key);
+      if (!existing || (item.editedAt || 0) >= (existing.editedAt || 0)) {
+        map.set(key, item);
+      }
+    }
   });
 
-  clientArr.forEach(item => {
-    const key = String(item.id || item.timestamp || `${item.date}_${item.time}`);
-    if (!deletedSet.has(key)) map.set(key, item);
-  });
-
-  return Array.from(map.values()).sort((a, b) => (b.timestamp || b.id || 0) - (a.timestamp || a.id || 0));
+  return Array.from(map.values())
+    .sort((a, b) => (b.ts || b.id || 0) - (a.ts || a.id || 0))
+    .slice(0, 150);
 }
 
+// Ищем базу семьи (синхронно с логикой index.html: fam_ + user.id)
 function getFamilyDb(chatId) {
   subscribedChats.add(chatId);
   let familyId = chatToFamily[chatId];
 
   if (!familyId) {
+    const defaultUserFam = 'fam_' + chatId;
     const existingFamilies = Object.keys(databases);
-    familyId = existingFamilies.length > 0 ? existingFamilies[0] : 'default_family';
+
+    if (databases[defaultUserFam]) {
+      familyId = defaultUserFam;
+    } else if (existingFamilies.length > 0) {
+      // Если в базе уже есть активная комната семьи, подключаемся к ней
+      familyId = existingFamilies[0];
+    } else {
+      // Иначе создаем стандартную комнату fam_<chatId>, которую ждет index.html
+      familyId = defaultUserFam;
+    }
     chatToFamily[chatId] = familyId;
   }
 
   if (!databases[familyId]) {
-    databases[familyId] = {};
+    databases[familyId] = { familyId };
   }
 
   const db = databases[familyId];
-  if (!Array.isArray(db.feedings)) db.feedings = [];
+  if (!Array.isArray(db.feeds)) db.feeds = [];
   if (!Array.isArray(db.diapers)) db.diapers = [];
   if (!Array.isArray(db.sleeps)) db.sleeps = [];
   if (!Array.isArray(db.deletedIds)) db.deletedIds = [];
@@ -104,7 +121,7 @@ function getFamilyDb(chatId) {
   return { db, familyId };
 }
 
-// Нижняя клавиатура (добавили кнопку отмены!)
+// Нижняя клавиатура
 const quickKeyboard = {
   reply_markup: {
     keyboard: [
@@ -118,7 +135,7 @@ const quickKeyboard = {
   }
 };
 
-// Команда /start
+// Команда /start (можно также написать /start КОД_КОМНАТЫ, если используете общий код с женой)
 bot.onText(/\/start(?:\s+(.+))?/, (msg, match) => {
   const chatId = msg.chat.id;
   const userName = msg.from.first_name || 'Родитель';
@@ -128,14 +145,15 @@ bot.onText(/\/start(?:\s+(.+))?/, (msg, match) => {
 
   if (passedFamilyId) {
     chatToFamily[chatId] = passedFamilyId;
-    if (!databases[passedFamilyId]) databases[passedFamilyId] = {};
+    if (!databases[passedFamilyId]) databases[passedFamilyId] = { familyId: passedFamilyId };
   }
 
+  const { familyId } = getFamilyDb(chatId);
   saveToCloud();
 
   bot.sendMessage(
     chatId,
-    `Привет, ${userName}! 🍼\n\nБыстрые кнопки активны. Если случайно нажмешь «🍼 Поел», просто тапни «↩️ Отменить кормление» внизу!`,
+    `Привет, ${userName}! 🍼\n\nКомната синхронизации: \`${familyId}\`\n_(Если у вас с женой в приложении вписан другой код комнаты, просто отправь мне команду: \`/start ВАШ_КОД\`)_`,
     { parse_mode: 'Markdown', ...quickKeyboard }
   );
 });
@@ -144,82 +162,85 @@ bot.onText(/\/start(?:\s+(.+))?/, (msg, match) => {
 bot.on('message', (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
+  const userName = msg.from.first_name || 'Родитель';
 
   if (!text || text.startsWith('/')) return;
 
-  const { db } = getFamilyDb(chatId);
+  const { db, familyId } = getFamilyDb(chatId);
   const time = getNowTime();
   const nowMs = Date.now();
   const todayStr = getTodayStr();
 
-  // 1. КНОПКА: ПОЕЛ
+  // 1. КНОПКА: ПОЕЛ (пишем прямо в массив feeds, как ждет index.html!)
   if (text === '🍼 Поел') {
-    const lastAmount = db.feedings.length > 0 ? (db.feedings[0].amount || db.feedings[0].ml || 120) : 120;
+    const lastMl = db.feeds.length > 0 ? (Number(db.feeds[0].ml) || 90) : 90;
 
-    const newFeeding = {
+    const newFeed = {
       id: nowMs,
-      time: time,
+      ts: nowMs,
+      editedAt: nowMs,
       date: todayStr,
-      timestamp: nowMs,
-      amount: lastAmount,
-      ml: lastAmount,
-      note: 'Быстрая запись из бота'
+      time: time,
+      ml: lastMl,
+      type: 'Смесь',
+      by: userName,
+      tags: []
     };
 
-    db.feedings.unshift(newFeeding);
+    db.feeds.unshift(newFeed);
+    db.updatedAt = nowMs;
     db.lastFeedingTime = nowMs;
     db.feedingAlertSent = false;
     saveToCloud();
 
     bot.sendMessage(
       chatId,
-      `✅ *Кормление записано!*\n🕒 Время: *${time}*\n🍼 Объем: *~${lastAmount} мл*\n\n🔔 _Через 3 часа напомню про следующее кормление и капли от коликов!_`,
+      `✅ *Кормление записано в приложение!*\n🕒 Время: *${time}*\n🍼 Объём: *${lastMl} мл* (Смесь)\n👤 Кто: ${userName}\n\n🔔 _Через 3 часа напомню про следующее кормление и капли от коликов!_`,
       { parse_mode: 'Markdown', ...quickKeyboard }
     );
   }
 
   // 2. КНОПКА: ОТМЕНИТЬ ПОСЛЕДНЕЕ КОРМЛЕНИЕ
   else if (text === '↩️ Отменить кормление') {
-    if (db.feedings.length === 0) {
+    if (db.feeds.length === 0) {
       bot.sendMessage(chatId, '🤷‍♂️ В списке пока нет записей кормлений для удаления.', quickKeyboard);
       return;
     }
 
-    const removed = db.feedings.shift(); // Удаляем самую свежую запись
-    const removedKey = String(removed.id || removed.timestamp || `${removed.date}_${removed.time}`);
-    db.deletedIds.push(removedKey); // Запоминаем, что она удалена
-
-    // Возвращаем таймер на предыдущее кормление
-    db.lastFeedingTime = db.feedings[0] ? (db.feedings[0].timestamp || db.feedings[0].id) : null;
+    const removed = db.feeds.shift();
+    db.deletedIds.push(String(removed.id));
+    db.updatedAt = nowMs;
+    db.lastFeedingTime = db.feeds[0] ? (db.feeds[0].ts || db.feeds[0].id) : null;
     db.feedingAlertSent = false;
     saveToCloud();
 
     bot.sendMessage(
       chatId,
-      `🗑 *Удалено последнее кормление:* за *${removed.time}* (${removed.amount || removed.ml || '?'} мл).\n` +
-      (db.feedings[0] ? `Текущее крайнее кормление теперь в *${db.feedings[0].time}*.` : `Список кормлений пуст.`),
+      `🗑 *Удалено последнее кормление:* за *${removed.time}* (${removed.ml} мл).\n` +
+      (db.feeds[0] ? `Крайнее кормление теперь в *${db.feeds[0].time}*.` : `Список кормлений пуст.`),
       { parse_mode: 'Markdown', ...quickKeyboard }
     );
   }
 
-  // 3. КНОПКИ: ПОДГУЗНИКИ
+  // 3. КНОПКИ: ПОДГУЗНИКИ (названия строго под счетчики в index.html: '💧 Попис' и '💩 Покак')
   else if (text === '💧 Пописал' || text === '💩 Покакал') {
-    const isPoop = text === '💩 Покакал';
-    const diaperType = isPoop ? 'Грязный 💩' : 'Мокрый 💧';
+    const diaperType = text === '💩 Покакал' ? '💩 Покак' : '💧 Попис';
 
     db.diapers.unshift({
       id: nowMs,
-      time: time,
+      ts: nowMs,
+      editedAt: nowMs,
       date: todayStr,
-      timestamp: nowMs,
-      type: isPoop ? 'dirty' : 'wet',
-      label: diaperType
+      time: time,
+      type: diaperType,
+      by: userName
     });
+    db.updatedAt = nowMs;
     saveToCloud();
 
     bot.sendMessage(
       chatId,
-      `✅ *Подгузник отмечен:* ${diaperType} в *${time}*`,
+      `✅ *Подгузник отмечен в дневнике:* ${diaperType} в *${time}*`,
       { parse_mode: 'Markdown', ...quickKeyboard }
     );
   }
@@ -233,7 +254,7 @@ bot.on('message', (msg) => {
 
       bot.sendMessage(
         chatId,
-        `🌙 *Малыш уснул в ${time}*\nТаймер сна запущен. Когда проснется — нажми кнопку еще раз!`,
+        `🌙 *Малышка уснула в ${time}*\nТаймер сна запущен. Когда проснется — нажми кнопку еще раз!`,
         { parse_mode: 'Markdown', ...quickKeyboard }
       );
     } else {
@@ -250,7 +271,7 @@ bot.on('message', (msg) => {
         date: todayStr,
         durationMinutes: durationMinutes,
         durationText: durationStr,
-        timestamp: nowMs
+        ts: nowMs
       });
 
       db.activeSleepStart = null;
@@ -259,7 +280,7 @@ bot.on('message', (msg) => {
 
       bot.sendMessage(
         chatId,
-        `☀️ *Малыш проснулся в ${time}!*\n🛌 Проспал: *${durationStr}* (с ${startedAt} до ${time})`,
+        `☀️ *Малышка проснулась в ${time}!*\n🛌 Проспала: *${durationStr}* (с ${startedAt} до ${time})`,
         { parse_mode: 'Markdown', ...quickKeyboard }
       );
     }
@@ -267,25 +288,24 @@ bot.on('message', (msg) => {
 
   // 5. КНОПКА: СВОДКА
   else if (text === '📊 Сводка') {
-    const lastFeed = db.feedings[0]
-      ? `${db.feedings[0].time} (${db.feedings[0].amount || db.feedings[0].ml || '?'} мл)`
-      : 'нет записей';
+    const todayFeeds = db.feeds.filter(f => f.date === todayStr);
+    const totalMl = todayFeeds.reduce((s, f) => s + (Number(f.ml) || 0), 0);
+    const todayDiapers = db.diapers.filter(d => d.date === todayStr);
 
-    const lastDiaper = db.diapers[0]
-      ? `${db.diapers[0].time} (${db.diapers[0].label || db.diapers[0].type})`
-      : 'нет записей';
-
+    const lastFeed = db.feeds[0] ? `${db.feeds[0].time} (${db.feeds[0].ml} мл)` : 'нет записей';
+    const lastDiaper = db.diapers[0] ? `${db.diapers[0].time} (${db.diapers[0].type})` : 'нет записей';
     const sleepStatus = db.activeSleepStart
-      ? `😴 Сейчас спит (уснул в ${db.activeSleepTimeStr})`
-      : (db.sleeps[0] ? `Проснулся в ${db.sleeps[0].endTime} (спал ${db.sleeps[0].durationText})` : 'нет записей');
+      ? `😴 Сейчас спит (уснула в ${db.activeSleepTimeStr})`
+      : (db.sleeps[0] ? `Проснулась в ${db.sleeps[0].endTime} (спала ${db.sleeps[0].durationText})` : 'нет записей');
 
     const summaryText =
-      `📊 *Быстрая сводка по малышу:*\n\n` +
-      `🍼 *Последнее кормление:* ${lastFeed}\n` +
-      `🧷 *Последний подгузник:* ${lastDiaper}\n` +
+      `📊 *Сводка за сегодня (${todayStr}):*\n` +
+      `🔗 Комната: \`${familyId}\`\n\n` +
+      `🍼 *Съедено за сегодня:* ${totalMl} мл (${todayFeeds.length} кормл.)\n` +
+      `🕒 *Последнее кормление:* ${lastFeed}\n` +
+      `🧷 *Подгузники за сегодня:* ${todayDiapers.length} шт. (посл: ${lastDiaper})\n` +
       `🛌 *Сон:* ${sleepStatus}\n` +
-      `🔔 *Уведомления:* ${db.notificationsEnabled ? 'Включены ✅' : 'Выключены 🔕'}\n\n` +
-      `Всего записей: кормлений — ${db.feedings.length}, подгузников — ${db.diapers.length}`;
+      `🔔 *Уведомления:* ${db.notificationsEnabled ? 'Включены ✅' : 'Выключены 🔕'}`;
 
     bot.sendMessage(chatId, summaryText, { parse_mode: 'Markdown', ...quickKeyboard });
   }
@@ -311,7 +331,7 @@ setInterval(() => {
     const { db } = getFamilyDb(chatId);
     if (!db.notificationsEnabled) return;
 
-    const lastFeedMs = db.lastFeedingTime || (db.feedings[0] && db.feedings[0].timestamp);
+    const lastFeedMs = db.lastFeedingTime || (db.feeds[0] && (db.feeds[0].ts || db.feeds[0].id));
     if (lastFeedMs && !db.feedingAlertSent && !db.activeSleepStart) {
       const minutesPassed = Math.floor((nowMs - lastFeedMs) / 60000);
       if (minutesPassed >= 180 && minutesPassed < 360) {
@@ -348,35 +368,31 @@ app.post('/api/save/:familyId', (req, res) => {
   const currentDb = databases[familyId] || {};
   const incoming = req.body || {};
 
-  // Если клиент прислал список на 1 запись меньше, чем было на сервере — значит пользователь удалил запись в Mini App!
-  const deletedIds = Array.from(new Set([...(currentDb.deletedIds || []), ...(incoming.deletedIds || [])]));
-  if (Array.isArray(incoming.feedings) && Array.isArray(currentDb.feedings) && incoming.feedings.length < currentDb.feedings.length) {
-    const incomingKeys = new Set(incoming.feedings.map(item => String(item.id || item.timestamp || `${item.date}_${item.time}`)));
-    currentDb.feedings.forEach(item => {
-      const key = String(item.id || item.timestamp || `${item.date}_${item.time}`);
-      if (!incomingKeys.has(key)) deletedIds.push(key);
-    });
-  }
+  const deletedIds = Array.from(new Set([
+    ...(currentDb.deletedIds || []),
+    ...(incoming.deletedIds || [])
+  ])).slice(-200);
 
-  const mergedFeedings = mergeArraysById(currentDb.feedings, incoming.feedings, deletedIds);
-  const newestFeedMs = mergedFeedings[0] ? (mergedFeedings[0].timestamp || mergedFeedings[0].id) : null;
+  const mergedFeeds = mergeLists(currentDb.feeds, incoming.feeds, deletedIds);
+  const mergedDiapers = mergeLists(currentDb.diapers, incoming.diapers, deletedIds);
+
+  const newestFeedMs = mergedFeeds[0] ? (mergedFeeds[0].ts || mergedFeeds[0].id) : null;
   const isNewFeedAdded = newestFeedMs && newestFeedMs !== currentDb.lastFeedingTime;
 
   databases[familyId] = {
     ...currentDb,
     ...incoming,
+    familyId,
+    updatedAt: Math.max(currentDb.updatedAt || 0, incoming.updatedAt || 0, Date.now()),
     deletedIds,
-    feedings: mergedFeedings,
-    diapers: mergeArraysById(currentDb.diapers, incoming.diapers, deletedIds),
-    sleeps: mergeArraysById(currentDb.sleeps, incoming.sleeps, deletedIds),
+    feeds: mergedFeeds,
+    diapers: mergedDiapers,
     lastFeedingTime: newestFeedMs,
-    feedingAlertSent: isNewFeedAdded ? false : currentDb.feedingAlertSent,
-    activeSleepStart: currentDb.activeSleepStart || incoming.activeSleepStart || null,
-    activeSleepTimeStr: currentDb.activeSleepTimeStr || incoming.activeSleepTimeStr || null
+    feedingAlertSent: isNewFeedAdded ? false : currentDb.feedingAlertSent
   };
 
   saveToCloud();
-  res.json({ success: true, mergedData: databases[familyId] });
+  res.json({ success: true });
 });
 
 const PORT = process.env.PORT || 3000;
