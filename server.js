@@ -20,6 +20,14 @@ function pad2(n) {
   return String(n).padStart(2, '0');
 }
 
+// Защита текста от случайных символов <, >, & при использовании HTML-разметки
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 // Формат времени ЧЧ:ММ (как в index.html)
 function getNowTime() {
   const msk = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Moscow' }));
@@ -138,7 +146,7 @@ const quickKeyboard = {
 // Команда /start (можно также написать /start КОД_КОМНАТЫ, если используете общий код с женой)
 bot.onText(/\/start(?:\s+(.+))?/, (msg, match) => {
   const chatId = msg.chat.id;
-  const userName = msg.from.first_name || 'Родитель';
+  const userName = escapeHtml(msg.from.first_name || 'Родитель');
   const passedFamilyId = match[1] ? match[1].trim() : null;
 
   subscribedChats.add(chatId);
@@ -153,8 +161,8 @@ bot.onText(/\/start(?:\s+(.+))?/, (msg, match) => {
 
   bot.sendMessage(
     chatId,
-    `Привет, ${userName}! 🍼\n\nКомната синхронизации: \`${familyId}\`\n_(Если у вас с женой в приложении вписан другой код комнаты, просто отправь мне команду: \`/start ВАШ_КОД\`)_`,
-    { parse_mode: 'Markdown', ...quickKeyboard }
+    `Привет, ${userName}! 🍼\n\nКомната синхронизации: <code>${escapeHtml(familyId)}</code>\n<i>(Если у вас с женой в приложении вписан другой код комнаты, просто отправь мне команду: <code>/start ВАШ_КОД</code>)</i>`,
+    { parse_mode: 'HTML', ...quickKeyboard }
   );
 });
 
@@ -162,7 +170,8 @@ bot.onText(/\/start(?:\s+(.+))?/, (msg, match) => {
 bot.on('message', (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
-  const userName = msg.from.first_name || 'Родитель';
+  const rawUserName = msg.from.first_name || 'Родитель';
+  const safeUserName = escapeHtml(rawUserName);
 
   if (!text || text.startsWith('/')) return;
 
@@ -183,7 +192,7 @@ bot.on('message', (msg) => {
       time: time,
       ml: lastMl,
       type: 'Смесь',
-      by: userName,
+      by: rawUserName,
       tags: []
     };
 
@@ -195,8 +204,8 @@ bot.on('message', (msg) => {
 
     bot.sendMessage(
       chatId,
-      `✅ *Кормление записано в приложение!*\n🕒 Время: *${time}*\n🍼 Объём: *${lastMl} мл* (Смесь)\n👤 Кто: ${userName}\n\n🔔 _Через 3 часа напомню про следующее кормление и капли от коликов!_`,
-      { parse_mode: 'Markdown', ...quickKeyboard }
+      `✅ <b>Кормление записано в приложение!</b>\n🕒 Время: <b>${time}</b>\n🍼 Объём: <b>${lastMl} мл</b> (Смесь)\n👤 Кто: ${safeUserName}\n\n🔔 <i>Через 3 часа напомню про следующее кормление и капли от коликов!</i>`,
+      { parse_mode: 'HTML', ...quickKeyboard }
     );
   }
 
@@ -216,9 +225,9 @@ bot.on('message', (msg) => {
 
     bot.sendMessage(
       chatId,
-      `🗑 *Удалено последнее кормление:* за *${removed.time}* (${removed.ml} мл).\n` +
-      (db.feeds[0] ? `Крайнее кормление теперь в *${db.feeds[0].time}*.` : `Список кормлений пуст.`),
-      { parse_mode: 'Markdown', ...quickKeyboard }
+      `🗑 <b>Удалено последнее кормление:</b> за <b>${removed.time}</b> (${removed.ml} мл).\n` +
+      (db.feeds[0] ? `Крайнее кормление теперь в <b>${db.feeds[0].time}</b>.` : `Список кормлений пуст.`),
+      { parse_mode: 'HTML', ...quickKeyboard }
     );
   }
 
@@ -233,15 +242,15 @@ bot.on('message', (msg) => {
       date: todayStr,
       time: time,
       type: diaperType,
-      by: userName
+      by: rawUserName
     });
     db.updatedAt = nowMs;
     saveToCloud();
 
     bot.sendMessage(
       chatId,
-      `✅ *Подгузник отмечен в дневнике:* ${diaperType} в *${time}*`,
-      { parse_mode: 'Markdown', ...quickKeyboard }
+      `✅ <b>Подгузник отмечен в дневнике:</b> ${diaperType} в <b>${time}</b>`,
+      { parse_mode: 'HTML', ...quickKeyboard }
     );
   }
 
@@ -254,8 +263,8 @@ bot.on('message', (msg) => {
 
       bot.sendMessage(
         chatId,
-        `🌙 *Малышка уснула в ${time}*\nТаймер сна запущен. Когда проснется — нажми кнопку еще раз!`,
-        { parse_mode: 'Markdown', ...quickKeyboard }
+        `🌙 <b>Малышка уснула в ${time}</b>\nТаймер сна запущен. Когда проснется — нажми кнопку еще раз!`,
+        { parse_mode: 'HTML', ...quickKeyboard }
       );
     } else {
       const durationMinutes = Math.max(1, Math.round((nowMs - db.activeSleepStart) / 60000));
@@ -280,8 +289,8 @@ bot.on('message', (msg) => {
 
       bot.sendMessage(
         chatId,
-        `☀️ *Малышка проснулась в ${time}!*\n🛌 Проспала: *${durationStr}* (с ${startedAt} до ${time})`,
-        { parse_mode: 'Markdown', ...quickKeyboard }
+        `☀️ <b>Малышка проснулась в ${time}!</b>\n🛌 Проспала: <b>${durationStr}</b> (с ${startedAt} до ${time})`,
+        { parse_mode: 'HTML', ...quickKeyboard }
       );
     }
   }
@@ -299,15 +308,15 @@ bot.on('message', (msg) => {
       : (db.sleeps[0] ? `Проснулась в ${db.sleeps[0].endTime} (спала ${db.sleeps[0].durationText})` : 'нет записей');
 
     const summaryText =
-      `📊 *Сводка за сегодня (${todayStr}):*\n` +
-      `🔗 Комната: \`${familyId}\`\n\n` +
-      `🍼 *Съедено за сегодня:* ${totalMl} мл (${todayFeeds.length} кормл.)\n` +
-      `🕒 *Последнее кормление:* ${lastFeed}\n` +
-      `🧷 *Подгузники за сегодня:* ${todayDiapers.length} шт. (посл: ${lastDiaper})\n` +
-      `🛌 *Сон:* ${sleepStatus}\n` +
-      `🔔 *Уведомления:* ${db.notificationsEnabled ? 'Включены ✅' : 'Выключены 🔕'}`;
+      `📊 <b>Сводка за сегодня (${todayStr}):</b>\n` +
+      `🔗 Комната: <code>${escapeHtml(familyId)}</code>\n\n` +
+      `🍼 <b>Съедено за сегодня:</b> ${totalMl} мл (${todayFeeds.length} кормл.)\n` +
+      `🕒 <b>Последнее кормление:</b> ${lastFeed}\n` +
+      `🧷 <b>Подгузники за сегодня:</b> ${todayDiapers.length} шт. (посл: ${lastDiaper})\n` +
+      `🛌 <b>Сон:</b> ${sleepStatus}\n` +
+      `🔔 <b>Уведомления:</b> ${db.notificationsEnabled ? 'Включены ✅' : 'Выключены 🔕'}`;
 
-    bot.sendMessage(chatId, summaryText, { parse_mode: 'Markdown', ...quickKeyboard });
+    bot.sendMessage(chatId, summaryText, { parse_mode: 'HTML', ...quickKeyboard });
   }
 
   // 6. КНОПКА: ВКЛ/ВЫКЛ УВЕДОМЛЕНИЙ
@@ -316,10 +325,10 @@ bot.on('message', (msg) => {
     saveToCloud();
 
     const statusText = db.notificationsEnabled
-      ? '🔔 *Уведомления включены!* Ровно через 3 часа после еды напомню о следующем кормлении и каплях от коликов.'
-      : '🔕 *Уведомления выключены.* Не буду беспокоить пушами, пока не включишь обратно.';
+      ? '🔔 <b>Уведомления включены!</b> Ровно через 3 часа после еды напомню о следующем кормлении и каплях от коликов.'
+      : '🔕 <b>Уведомления выключены.</b> Не буду беспокоить пушами, пока не включишь обратно.';
 
-    bot.sendMessage(chatId, statusText, { parse_mode: 'Markdown', ...quickKeyboard });
+    bot.sendMessage(chatId, statusText, { parse_mode: 'HTML', ...quickKeyboard });
   }
 });
 
@@ -344,8 +353,8 @@ setInterval(() => {
 
         bot.sendMessage(
           chatId,
-          `🍼 *Пора готовить смесь!* С последнего кормления прошло *${timePassedStr}*.\n\n💧 **Не забудь добавить капли от коликов в смесь!**\n\n_(Когда покормишь, нажми кнопку «🍼 Поел» внизу)_`,
-          { parse_mode: 'Markdown', ...quickKeyboard }
+          `🍼 <b>Пора готовить смесь!</b> С последнего кормления прошло <b>${timePassedStr}</b>.\n\n💧 <b>Не забудь добавить капли от коликов в смесь!</b>\n\n<i>(Когда покормишь, нажми кнопку «🍼 Поел» внизу)</i>`,
+          { parse_mode: 'HTML', ...quickKeyboard }
         );
       }
     }
@@ -353,6 +362,10 @@ setInterval(() => {
 }, 60 * 1000);
 
 // === API ДЛЯ ПИНГА И MINI APP ===
+
+app.get('/', (req, res) => {
+  res.send('Сервер трекера малышки работает отлично! 🍼');
+});
 
 app.get('/ping', (req, res) => {
   res.send('Alive!');
