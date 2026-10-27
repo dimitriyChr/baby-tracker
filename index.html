@@ -889,4 +889,188 @@
 
     function switchTab(tab) {
       ['feed', 'calc', 'diary'].forEach(t => {
-        document.
+        document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+        document.getElementById('tabBtn-' + t).classList.toggle('active', t === tab);
+      });
+    }
+
+    function toggleTheme() {
+      state.theme = state.theme === 'dark' ? 'light' : 'dark';
+      applyTheme();
+      saveStorage(state);
+    }
+
+    function toggleSyncDrawer() {
+      document.getElementById('syncDrawer').classList.toggle('open');
+    }
+
+    function adjustMl(delta) {
+      const inp = document.getElementById('feedMl');
+      inp.value = Math.max(10, (Number(inp.value) || 0) + Number(delta));
+    }
+
+    function setNormMl() {
+      document.getElementById('feedMl').value = currentSingleNorm;
+    }
+
+    function toggleTag(btn, tag) {
+      btn.classList.toggle('active');
+      if (activeTags.includes(tag)) activeTags = activeTags.filter(t => t !== tag);
+      else activeTags.push(tag);
+    }
+
+    // ⏰ Функция отправки напоминания на бэкенд
+    async function scheduleFeedingReminder(feedingTimestamp) {
+      const chatId = Telegram.WebApp.initDataUnsafe?.user?.id;
+      if (!chatId) {
+        console.error('Не удалось определить chatId пользователя');
+        return;
+      }
+
+      try {
+        await fetch(`${SERVER_URL}/api/set-reminder`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chatId: chatId,
+            timestamp: feedingTimestamp,
+            text: '⚠️ Внимание! Через 5 минут запланировано кормление малышки! 🍼'
+          })
+        });
+      } catch (e) {
+        console.error('Ошибка при установке напоминания:', e);
+      }
+    }
+
+    function addFeed() {
+      const ml = Number(document.getElementById('feedMl').value) || 0;
+      const type = document.getElementById('feedType').value;
+      const timeVal = document.getElementById('feedTimeInput').value;
+      const entryTs = customTimeEdited ? buildTimestampFromHHMM(timeVal) : Date.now();
+      const entryDate = new Date(entryTs);
+
+      state.feeds.unshift({
+        id: Date.now(),
+        ts: entryTs,
+        editedAt: Date.now(),
+        date: formatDateKey(entryDate),
+        time: formatHHMM(entryDate),
+        ml,
+        type,
+        by: userName,
+        tags: [...activeTags]
+      });
+
+      // ⏰ Рассчитываем время следующего кормления и отправляем напоминание
+      const nextFeedingTime = entryTs + (state.interval * 3600 * 1000);
+      scheduleFeedingReminder(nextFeedingTime);
+
+      activeTags = [];
+      document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      setTimeNow();
+      sortEntries();
+      saveStorage(state);
+      renderLogs();
+      syncWithCloud(true);
+    }
+
+    function addDiaper(type) {
+      const now = new Date();
+      state.diapers.unshift({
+        id: Date.now(),
+        ts: now.getTime(),
+        editedAt: now.getTime(),
+        date: formatDateKey(now),
+        time: formatHHMM(now),
+        type,
+        by: userName
+      });
+      sortEntries();
+      saveStorage(state);
+      renderLogs();
+      syncWithCloud(true);
+    }
+
+    function deleteEntry(listName, id) {
+      state.deletedIds = state.deletedIds || [];
+      state.deletedIds.push(String(id));
+      state[listName] = state[listName].filter(i => String(i.id) !== String(id));
+      saveStorage(state);
+      renderLogs();
+      syncWithCloud(true);
+    }
+
+    function saveChecklist() {
+      state.checklist.d3 = document.getElementById('chkD3').checked;
+      state.checklist.tummy = document.getElementById('chkTummy').checked;
+      state.checklist.bath = document.getElementById('chkBath').checked;
+      state.checklist.walk = document.getElementById('chkWalk').checked;
+      saveStorage(state);
+      syncWithCloud(true);
+    }
+
+    function syncNow() {
+      syncWithCloud(false);
+      alert('Синхронизация запрошена!');
+    }
+
+    function copyReport() {
+      const tf = state.feeds.filter(isTodayEntry);
+      const td = state.diapers.filter(isTodayEntry);
+      const total = tf.reduce((s, f) => s + (Number(f.ml) || 0), 0);
+      const text = [
+        '🍼 Сводка малышки за ' + formatDateKey(new Date()) + ':',
+        '• Съедено: ' + total + ' мл (' + tf.length + ' кормлений)',
+        '• Подгузники: всего ' + td.length + ' шт.',
+        '• Витамин D3: ' + (state.checklist.d3 ? 'Да ✅' : 'Нет'),
+        '• Вес: ' + state.currentWeight + ' г'
+      ].join('\n');
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => alert('Сводка скопирована!'));
+      } else {
+        prompt('Скопируйте сводку:', text);
+      }
+    }
+
+    function exportData() {
+      const code = JSON.stringify(state);
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(code).then(() => alert('Код базы скопирован!'));
+      } else {
+        prompt('Скопируй код базы:', code);
+      }
+    }
+
+    function importData() {
+      const raw = prompt('Вставь код базы данных:');
+      if (raw) {
+        try {
+          state = sanitizeState(JSON.parse(raw));
+          saveStorage(state);
+          syncWithCloud(true);
+          location.reload();
+        } catch (e) {
+          alert('Ошибка формата данных');
+        }
+      }
+    }
+
+    const todayKey = formatDateKey(new Date());
+    if (!state.checklist || state.checklist.date !== todayKey) {
+      state.checklist = { date: todayKey, d3: false, tummy: false, bath: false, walk: false };
+    }
+
+    applyTheme();
+    setTimeNow();
+    syncInputsFromState();
+    saveAndCalc(false);
+    renderLogs();
+    
+    // Автоматическая синхронизация при старте и каждые 10 секунд
+    syncWithCloud(false);
+    setInterval(() => {
+      if (document.visibilityState === 'visible') syncWithCloud(false);
+    }, 10000);
+  </script>
+</body>
+</html>
