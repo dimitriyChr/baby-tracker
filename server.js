@@ -15,6 +15,7 @@ const bot = new TelegramBot(TOKEN, { polling: true });
 const databases = {};
 const chatToFamily = {};
 const subscribedChats = new Set();
+let reminders = []; // Массив для запланированных пуш-напоминаний
 
 function pad2(n) {
   return String(n).padStart(2, '0');
@@ -143,7 +144,7 @@ const quickKeyboard = {
   }
 };
 
-// Команда /start (можно также написать /start КОД_КОМНАТЫ, если используете общий код с женой)
+// Команда /start
 bot.onText(/\/start(?:\s+(.+))?/, (msg, match) => {
   const chatId = msg.chat.id;
   const userName = escapeHtml(msg.from.first_name || 'Родитель');
@@ -180,7 +181,7 @@ bot.on('message', (msg) => {
   const nowMs = Date.now();
   const todayStr = getTodayStr();
 
-  // 1. КНОПКА: ПОЕЛ (пишем прямо в массив feeds, как ждет index.html!)
+  // 1. КНОПКА: ПОЕЛ
   if (text === '🍼 Поел') {
     const lastMl = db.feeds.length > 0 ? (Number(db.feeds[0].ml) || 90) : 90;
 
@@ -231,7 +232,7 @@ bot.on('message', (msg) => {
     );
   }
 
-  // 3. КНОПКИ: ПОДГУЗНИКИ (названия строго под счетчики в index.html: '💧 Попис' и '💩 Покак')
+  // 3. КНОПКИ: ПОДГУЗНИКИ
   else if (text === '💧 Пописал' || text === '💩 Покакал') {
     const diaperType = text === '💩 Покакал' ? '💩 Покак' : '💧 Попис';
 
@@ -332,7 +333,7 @@ bot.on('message', (msg) => {
   }
 });
 
-// === ФОНОВЫЙ ТАЙМЕР КОНТРОЛЯ КОРМЛЕНИЯ (ровно 3 часа = 180 минут) ===
+// === ФОНОВЫЙ ТАЙМЕР (ЧЕРЕЗ 3 ЧАСА) ===
 setInterval(() => {
   const nowMs = Date.now();
 
@@ -361,6 +362,20 @@ setInterval(() => {
   });
 }, 60 * 1000);
 
+// === ФОНОВАЯ ПРОВЕРКА ИНДИВИДУАЛЬНЫХ НАПОМИНАНИЙ ИЗ MINI APP (ЗА 5 МИНУТ) ===
+setInterval(() => {
+  const now = new Date();
+  
+  reminders = reminders.filter(reminder => {
+    if (now >= new Date(reminder.remindTime)) {
+      bot.sendMessage(reminder.chatId, reminder.text, { parse_mode: 'HTML', ...quickKeyboard })
+         .catch(err => console.error('Ошибка отправки напоминания:', err));
+      return false; 
+    }
+    return true;
+  });
+}, 60 * 1000);
+
 // === API ДЛЯ ПИНГА И MINI APP ===
 
 app.get('/', (req, res) => {
@@ -369,6 +384,27 @@ app.get('/', (req, res) => {
 
 app.get('/ping', (req, res) => {
   res.send('Alive!');
+});
+
+// Эндпоинт для приема напоминаний из Mini App (за 5 минут до события)
+app.post('/api/set-reminder', (req, res) => {
+  const { chatId, timestamp, text } = req.body;
+  
+  if (!chatId || !timestamp) {
+    return res.status(400).json({ error: 'Missing chatId or timestamp' });
+  }
+
+  // Время напоминания: ровно за 5 минут до указанного времени кормления
+  const remindTime = new Date(timestamp - 5 * 60 * 1000); 
+
+  reminders.push({ 
+    chatId: Number(chatId), 
+    remindTime, 
+    text: text || '⚠️ Внимание! Через 5 минут запланировано кормление малышки! 🍼' 
+  });
+  
+  console.log(`⏰ Напоминание установлено на ${remindTime.toLocaleTimeString()} для чата ${chatId}`);
+  res.json({ success: true, remindTime });
 });
 
 app.get('/api/get/:familyId', (req, res) => {
