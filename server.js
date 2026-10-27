@@ -167,7 +167,7 @@ bot.onText(/\/start(?:\s+(.+))?/, (msg, match) => {
   );
 });
 
-// Обработка нажатий на кнопки
+// Обработка нажатий на кнопки и текстовых сообщений (включая умный парсер)
 bot.on('message', (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
@@ -181,7 +181,10 @@ bot.on('message', (msg) => {
   const nowMs = Date.now();
   const todayStr = getTodayStr();
 
-  // 1. КНОПКА: ПОЕЛ
+  // === 1. ОБРАБОТКА КНОПОК ИЗ МЕНЮ И ТЕКСТОВЫЙ ПАРСЕР ===
+  const lowerText = text.toLowerCase();
+
+  // Кнопка: ПОЕЛ
   if (text === '🍼 Поел') {
     const lastMl = db.feeds.length > 0 ? (Number(db.feeds[0].ml) || 90) : 90;
 
@@ -210,7 +213,7 @@ bot.on('message', (msg) => {
     );
   }
 
-  // 2. КНОПКА: ОТМЕНИТЬ ПОСЛЕДНЕЕ КОРМЛЕНИЕ
+  // Кнопка: ОТМЕНИТЬ ПОСЛЕДНЕЕ КОРМЛЕНИЕ
   else if (text === '↩️ Отменить кормление') {
     if (db.feeds.length === 0) {
       bot.sendMessage(chatId, '🤷‍♂️ В списке пока нет записей кормлений для удаления.', quickKeyboard);
@@ -232,7 +235,7 @@ bot.on('message', (msg) => {
     );
   }
 
-  // 3. КНОПКИ: ПОДГУЗНИКИ
+  // Кнопки: ПОДГУЗНИКИ
   else if (text === '💧 Пописал' || text === '💩 Покакал') {
     const diaperType = text === '💩 Покакал' ? '💩 Покак' : '💧 Попис';
 
@@ -255,7 +258,7 @@ bot.on('message', (msg) => {
     );
   }
 
-  // 4. КНОПКА: СОН (СТАРТ / СТОП)
+  // Кнопка: СОН (СТАРТ / СТОП)
   else if (text === '😴 Сон (Старт/Стоп)') {
     if (!db.activeSleepStart) {
       db.activeSleepStart = nowMs;
@@ -296,7 +299,7 @@ bot.on('message', (msg) => {
     }
   }
 
-  // 5. КНОПКА: СВОДКА
+  // Кнопка: СВОДКА
   else if (text === '📊 Сводка') {
     const todayFeeds = db.feeds.filter(f => f.date === todayStr);
     const totalMl = todayFeeds.reduce((s, f) => s + (Number(f.ml) || 0), 0);
@@ -320,7 +323,7 @@ bot.on('message', (msg) => {
     bot.sendMessage(chatId, summaryText, { parse_mode: 'HTML', ...quickKeyboard });
   }
 
-  // 6. КНОПКА: ВКЛ/ВЫКЛ УВЕДОМЛЕНИЙ
+  // Кнопка: ВКЛ/ВЫКЛ УВЕДОМЛЕНИЙ
   else if (text === '🔔 Уведомления Вкл/Выкл') {
     db.notificationsEnabled = !db.notificationsEnabled;
     saveToCloud();
@@ -330,6 +333,64 @@ bot.on('message', (msg) => {
       : '🔕 <b>Уведомления выключены.</b> Не буду беспокоить пушами, пока не включишь обратно.';
 
     bot.sendMessage(chatId, statusText, { parse_mode: 'HTML', ...quickKeyboard });
+  }
+
+  // === 2. УМНЫЙ ПАРСЕР СВОБОДНОГО ТЕКСТА (ГОЛОСА / ВВОДА) ===
+  else {
+    // Проверка на подгузники по словам
+    if (lowerText.includes('попис') || lowerText.includes('пописал')) {
+      db.diapers.unshift({ id: nowMs, ts: nowMs, editedAt: nowMs, date: todayStr, time: time, type: '💧 Попис', by: rawUserName });
+      db.updatedAt = nowMs;
+      saveToCloud();
+      bot.sendMessage(chatId, `✅ <b>Записал попис</b> в ${time} 💧 (${safeUserName})`, { parse_mode: 'HTML', ...quickKeyboard });
+      return;
+    }
+
+    if (lowerText.includes('покак') || lowerText.includes('покакал')) {
+      db.diapers.unshift({ id: nowMs, ts: nowMs, editedAt: nowMs, date: todayStr, time: time, type: '💩 Покак', by: rawUserName });
+      db.updatedAt = nowMs;
+      saveToCloud();
+      bot.sendMessage(chatId, `✅ <b>Записал покак</b> в ${time} 💩 (${safeUserName})`, { parse_mode: 'HTML', ...quickKeyboard });
+      return;
+    }
+
+    // Проверка на кормление (если есть цифры объема или слова поела/смесь)
+    const mlMatch = lowerText.match(/(\d+)\s*(?:мл)?/);
+    if (lowerText.includes('поел') || lowerText.includes('смесь') || lowerText.includes('мл') || (mlMatch && !isNaN(mlMatch[1]) && Number(mlMatch[1]) > 15 && Number(mlMatch[1]) < 350)) {
+      const ml = mlMatch ? parseInt(mlMatch[1], 10) : (db.feeds.length > 0 ? (Number(db.feeds[0].ml) || 90) : 90);
+      
+      const newFeed = {
+        id: nowMs,
+        ts: nowMs,
+        editedAt: nowMs,
+        date: todayStr,
+        time: time,
+        ml: ml,
+        type: lowerText.includes('гв') ? 'ГВ / Молоко' : 'Смесь',
+        by: rawUserName,
+        tags: []
+      };
+
+      db.feeds.unshift(newFeed);
+      db.updatedAt = nowMs;
+      db.lastFeedingTime = nowMs;
+      db.feedingAlertSent = false;
+      saveToCloud();
+
+      bot.sendMessage(
+        chatId,
+        `✅ <b>Распознано кормление:</b> ${ml} мл (${time})\n👤 Записал (${safeUserName})!`,
+        { parse_mode: 'HTML', ...quickKeyboard }
+      );
+      return;
+    }
+
+    // Если бот вообще ничего не понял из текста
+    bot.sendMessage(
+      chatId,
+      `🤖 Я не совсем понял команду. Воспользуйся кнопками внизу или напиши, например: <i>«120 мл»</i> или <i>«пописал»</i>.`,
+      { parse_mode: 'HTML', ...quickKeyboard }
+    );
   }
 });
 
