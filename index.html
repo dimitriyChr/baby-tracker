@@ -701,4 +701,192 @@
 
     function applyTheme() {
       document.documentElement.setAttribute('data-theme', state.theme);
+      const btn = document.getElementById('themeBtn');
+      if (btn) btn.textContent = state.theme === 'dark' ? '🌙' : '☀️';
+    }
+
+    function syncInputsFromState() {
+      document.getElementById('birthDate').value = state.birthDate || '';
+      document.getElementById('currentWeight').value = state.currentWeight || 3800;
+      document.getElementById('birthWeight').value = state.birthWeight || 3300;
+      document.getElementById('feedInterval').value = state.interval || 3;
+      document.getElementById('chkD3').checked = Boolean(state.checklist.d3);
+      document.getElementById('chkTummy').checked = Boolean(state.checklist.tummy);
+      document.getElementById('chkBath').checked = Boolean(state.checklist.bath);
+      document.getElementById('chkWalk').checked = Boolean(state.checklist.walk);
+      document.getElementById('familyCodeInput').value = state.familyId || '';
       
+      const infoBox = document.getElementById('tgInfo');
+      if (tgUser) {
+        infoBox.innerHTML = `👤 ${tgUser.first_name} | Код: <b>${state.familyId}</b>`;
+      } else {
+        infoBox.innerHTML = `🌐 Локальный режим | Код: <b>${state.familyId}</b>`;
+      }
+    }
+
+    function saveAndCalc(triggerCloud) {
+      state.birthDate = document.getElementById('birthDate').value;
+      state.currentWeight = Number(document.getElementById('currentWeight').value) || 3500;
+      state.birthWeight = Number(document.getElementById('birthWeight').value) || 3300;
+      state.interval = Number(document.getElementById('feedInterval').value) || 3;
+
+      let ageDays = 30;
+      if (state.birthDate) {
+        const diff = Date.now() - new Date(state.birthDate).getTime();
+        ageDays = Math.max(1, Math.floor(diff / 86400000));
+        const months = Math.floor(ageDays / 30);
+        const remDays = ageDays % 30;
+        document.getElementById('ageBadge').textContent = months > 0
+          ? 'Возраст: ' + months + ' мес. ' + remDays + ' дн. (' + ageDays + ' дн.)'
+          : 'Возраст: ' + ageDays + ' дн.';
+      }
+
+      let daily = 0;
+      let method = '';
+      if (ageDays <= 10) {
+        const k = state.birthWeight < 3200 ? 70 : 80;
+        const fin = ageDays * k;
+        const zai = 0.02 * state.birthWeight * ageDays;
+        daily = Math.round((fin + zai) / 2);
+        method = 'Первые 10 дней: среднее по Финкельштейну (' + fin + ' мл) и Зайцевой (' + Math.round(zai) + ' мл).';
+      } else if (ageDays <= 60) {
+        daily = Math.round(state.currentWeight / 5);
+        method = 'От 10 дней до 2 мес: объёмный метод (1/5 от текущего веса).';
+      } else if (ageDays <= 120) {
+        daily = Math.round(state.currentWeight / 6);
+        method = '2–4 месяца: 1/6 от массы тела.';
+      } else if (ageDays <= 180) {
+        daily = Math.round(state.currentWeight / 7);
+        method = '4–6 месяцев: 1/7 от массы тела.';
+      } else {
+        daily = Math.min(1000, Math.round(state.currentWeight / 8));
+        method = 'Старше 6 мес: 1/8 от массы тела (до 1000 мл).';
+      }
+
+      const feedsPerDay = Math.round(24 / state.interval);
+      currentSingleNorm = Math.round(daily / feedsPerDay / 5) * 5;
+
+      document.getElementById('dailyNorm').textContent = daily + ' мл';
+      document.getElementById('singleNorm').textContent = currentSingleNorm + ' мл';
+      document.getElementById('formulaHint').textContent = method + ' Кормлений в сутки: ~' + feedsPerDay + '.';
+
+      const scoops = Math.max(1, Math.round(currentSingleNorm / 30));
+      const waterMl = scoops * 30;
+      document.getElementById('scoopHint').innerHTML =
+        '<span>🥄 <b>Шпаргалка по смеси:</b></span><span>' + waterMl + ' мл воды + <b>' + scoops + ' лож.</b></span>';
+
+      saveStorage(state);
+      if (triggerCloud) syncWithCloud(true);
+    }
+
+    function isTodayEntry(entry) {
+      const todayKey = formatDateKey(new Date());
+      if (entry.date === todayKey) return true;
+      if (entry.ts) return formatDateKey(new Date(entry.ts)) === todayKey;
+      return false;
+    }
+
+    function renderLogs() {
+      sortEntries();
+      const todayFeeds = state.feeds.filter(isTodayEntry);
+      const totalMl = todayFeeds.reduce((s, f) => s + (Number(f.ml) || 0), 0);
+      document.getElementById('todayTotal').textContent =
+        'Съедено за сегодня: ' + totalMl + ' мл (' + todayFeeds.length + ' кормл.)';
+
+      const feedLog = document.getElementById('feedLog');
+      feedLog.innerHTML = todayFeeds.length ? todayFeeds.map(f => `
+        <div class="log-item">
+          <div>
+            <button type="button" class="time-badge" onclick="openTimeModal('feeds', '${f.id}')">${f.time} ✏️</button>
+            <span style="color:var(--accent);font-weight:700">${f.ml} мл</span> (${f.type})
+            <span style="font-size:0.75rem;color:var(--muted);margin-left:4px;">${f.by || ''}</span>
+            ${f.tags && f.tags.length ? `<div style="font-size:0.75rem;color:var(--muted);margin-top:3px;">${f.tags.join(', ')}</div>` : ''}
+          </div>
+          <button type="button" class="del-btn" onclick="deleteEntry('feeds', '${f.id}')">✕</button>
+        </div>
+      `).join('') : '<div style="color:var(--muted);font-size:0.85rem;">Записей за сегодня пока нет</div>';
+
+      const todayDiapers = state.diapers.filter(isTodayEntry);
+      document.getElementById('cntPee').textContent = todayDiapers.filter(d => d.type && d.type.includes('Попис')).length;
+      document.getElementById('cntPoop').textContent = todayDiapers.filter(d => d.type && d.type.includes('Покак')).length;
+      document.getElementById('cntMix').textContent = todayDiapers.filter(d => d.type && d.type.includes('Комбо')).length;
+
+      document.getElementById('diaperLog').innerHTML = todayDiapers.slice(0, 8).map(d => `
+        <div class="log-item">
+          <span>
+            <button type="button" class="time-badge" onclick="openTimeModal('diapers', '${d.id}')">${d.time} ✏️</button>
+            ${d.type} <small style="color:var(--muted)">${d.by || ''}</small>
+          </span>
+          <button type="button" class="del-btn" onclick="deleteEntry('diapers', '${d.id}')">✕</button>
+        </div>
+      `).join('');
+
+      updateTimer();
+    }
+
+    function updateTimer() {
+      const inp = document.getElementById('feedTimeInput');
+      if (!customTimeEdited && inp && document.activeElement !== inp) {
+        inp.value = formatHHMM(new Date());
+      }
+
+      if (!state.feeds.length) {
+        document.getElementById('countdown').textContent = 'Нет записей';
+        document.getElementById('nextFeedTime').textContent = '--:--';
+        return;
+      }
+      const last = state.feeds[0].ts || state.feeds[0].id;
+      const next = last + state.interval * 3600 * 1000;
+      const nextDate = new Date(next);
+      document.getElementById('nextFeedTime').textContent = formatHHMM(nextDate);
+
+      const diff = next - Date.now();
+      const el = document.getElementById('countdown');
+      if (diff <= 0) {
+        el.textContent = 'Пора кормить! 🍼';
+        el.style.color = 'var(--accent)';
+      } else {
+        const h = Math.floor(diff / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        const s = Math.floor((diff % 60000) / 1000);
+        el.textContent = h + 'ч ' + pad2(m) + 'м ' + pad2(s) + 'с';
+        el.style.color = 'var(--mint)';
+      }
+    }
+
+    function openTimeModal(listName, id) {
+      const list = state[listName];
+      if (!Array.isArray(list)) return;
+      const item = list.find(i => String(i.id) === String(id));
+      if (!item) return;
+      editingTarget = { listName, id: String(id) };
+      document.getElementById('modalTimeInput').value = item.time || formatHHMM(new Date());
+      document.getElementById('timeModal').classList.add('open');
+    }
+
+    function closeTimeModal() {
+      editingTarget = null;
+      document.getElementById('timeModal').classList.remove('open');
+    }
+
+    function saveEditedTime() {
+      if (!editingTarget) return;
+      const val = document.getElementById('modalTimeInput').value;
+      const list = state[editingTarget.listName];
+      const item = list && list.find(i => String(i.id) === editingTarget.id);
+      if (item && val && val.includes(':')) {
+        item.time = val;
+        item.ts = buildTimestampFromHHMM(val, item.ts);
+        item.date = formatDateKey(new Date(item.ts));
+        item.editedAt = Date.now();
+        sortEntries();
+        saveStorage(state);
+        renderLogs();
+        syncWithCloud(true);
+      }
+      closeTimeModal();
+    }
+
+    function switchTab(tab) {
+      ['feed', 'calc', 'diary'].forEach(t => {
+        document.
