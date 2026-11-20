@@ -8,20 +8,26 @@ app.use(cors());
 
 const TOKEN = process.env.BOT_TOKEN;
 const WEB_APP_URL = process.env.WEB_APP_URL || 'https://dimitriychr.github.io/baby-tracker/';
-const FIREBASE_URL = process.env.FIREBASE_URL; // Опционально для вечного бэкапа
+const FIREBASE_URL = process.env.FIREBASE_URL;
+
+// === НАСТРОЙКИ ВОЗРАСТА И НОРМ (1.5 МЕСЯЦА) ===
+const BIRTH_DATE = { year: 2026, month: 10, day: 10 }; // 10.10.2026
+const DEFAULT_FEED_ML = 120;      // Новый базовый объем для 1.5 мес.
+const DAILY_TARGET_ML = 880;      // Ориентир суточной нормы (мл)
+const FEED_INTERVAL_MIN = 195;    // Напоминание о еде через 3ч 15м (195 мин)
+const WAKE_WINDOW_LIMIT_MIN = 75; // Сигнал о конце ВБ через 1ч 15м (75 мин)
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 const databases = {};
 const chatToFamily = {};
 const subscribedChats = new Set();
-let reminders = []; // Массив для запланированных пуш-напоминаний
+let reminders = [];
 
 function pad2(n) {
   return String(n).padStart(2, '0');
 }
 
-// Защита текста от случайных символов <, >, & при использовании HTML-разметки
 function escapeHtml(str) {
   return String(str || '')
     .replace(/&/g, '&amp;')
@@ -29,16 +35,38 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;');
 }
 
-// Формат времени ЧЧ:ММ (как в index.html)
+function getMskDateObj() {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Moscow' }));
+}
+
 function getNowTime() {
-  const msk = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Moscow' }));
+  const msk = getMskDateObj();
   return pad2(msk.getHours()) + ':' + pad2(msk.getMinutes());
 }
 
-// Формат даты ДД.ММ.ГГГГ (строго как formatDateKey в index.html)
 function getTodayStr() {
-  const msk = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Moscow' }));
+  const msk = getMskDateObj();
   return pad2(msk.getDate()) + '.' + pad2(msk.getMonth() + 1) + '.' + msk.getFullYear();
+}
+
+// Расчет точного возраста (месяцы и дни)
+function getBabyAgeStr() {
+  const now = getMskDateObj();
+  let months = (now.getFullYear() - BIRTH_DATE.year) * 12 + (now.getMonth() + 1 - BIRTH_DATE.month);
+  let days = now.getDate() - BIRTH_DATE.day;
+
+  if (days < 0) {
+    months -= 1;
+    const prevMonthDays = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+    days += prevMonthDays;
+  }
+  return `${months} мес. ${days} дн.`;
+}
+
+function formatDuration(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return h > 0 ? `${h} ч ${m} мин` : `${m} мин`;
 }
 
 // === ОБЛАЧНЫЙ БЭКАП ===
@@ -75,7 +103,7 @@ async function saveToCloud() {
   }
 }
 
-// Умное слияние списков (строго по формату index.html: id, ts, editedAt)
+// Умное слияние списков (совместимо с index.html)
 function mergeLists(serverArr = [], clientArr = [], deletedIds = []) {
   const delSet = new Set(deletedIds.map(String));
   const map = new Map();
@@ -95,7 +123,7 @@ function mergeLists(serverArr = [], clientArr = [], deletedIds = []) {
     .slice(0, 150);
 }
 
-// Ищем базу семьи (синхронно с логикой index.html: fam_ + user.id)
+// Получение базы семьи
 function getFamilyDb(chatId) {
   subscribedChats.add(chatId);
   let familyId = chatToFamily[chatId];
@@ -107,10 +135,8 @@ function getFamilyDb(chatId) {
     if (databases[defaultUserFam]) {
       familyId = defaultUserFam;
     } else if (existingFamilies.length > 0) {
-      // Если в базе уже есть активная комната семьи, подключаемся к ней
       familyId = existingFamilies[0];
     } else {
-      // Иначе создаем стандартную комнату fam_<chatId>, которую ждет index.html
       familyId = defaultUserFam;
     }
     chatToFamily[chatId] = familyId;
@@ -124,20 +150,52 @@ function getFamilyDb(chatId) {
   if (!Array.isArray(db.feeds)) db.feeds = [];
   if (!Array.isArray(db.diapers)) db.diapers = [];
   if (!Array.isArray(db.sleeps)) db.sleeps = [];
+  if (!Array.isArray(db.careLogs)) db.careLogs = []; // Витамин D3, газики, животик
   if (!Array.isArray(db.deletedIds)) db.deletedIds = [];
   if (typeof db.notificationsEnabled === 'undefined') db.notificationsEnabled = true;
 
   return { db, familyId };
 }
 
-// Нижняя клавиатура
+// Общая функция записи кормления
+function recordFeeding(db, ml, type, rawUserName) {
+  const time = getNowTime();
+  const nowMs = Date.now();
+  const todayStr = getTodayStr();
+
+  const newFeed = {
+    id: nowMs,
+    ts: nowMs,
+    editedAt: nowMs,
+    date: todayStr,
+    time: time,
+    ml: Number(ml),
+    type: type || 'Смесь',
+    by: rawUserName,
+    tags: []
+  };
+
+  db.feeds.unshift(newFeed);
+  db.updatedAt = nowMs;
+  db.lastFeedingTime = nowMs;
+  db.feedingAlertSent = false;
+  saveToCloud();
+
+  const todayFeeds = db.feeds.filter(f => f.date === todayStr);
+  const totalTodayMl = todayFeeds.reduce((s, f) => s + (Number(f.ml) || 0), 0);
+
+  return { newFeed, totalTodayMl, todayCount: todayFeeds.length };
+}
+
+// Нижняя клавиатура (обновленная под 1.5 месяца)
 const quickKeyboard = {
   reply_markup: {
     keyboard: [
       [{ text: '🍼 Открыть трекер', web_app: { url: WEB_APP_URL } }],
-      [{ text: '🍼 Поел' }, { text: '😴 Сон (Старт/Стоп)' }],
-      [{ text: '💧 Пописал' }, { text: '💩 Покакал' }, { text: '📊 Сводка' }],
-      [{ text: '↩️ Отменить кормление' }, { text: '🔔 Уведомления Вкл/Выкл' }]
+      [{ text: '🍼 Поел' }, { text: '😴 Сон / ВБ' }],
+      [{ text: '💧 Пописал' }, { text: '💩 Покакал' }],
+      [{ text: '💊 Витамин D / Животик' }, { text: '📊 Сводка' }],
+      [{ text: '↩️ Отменить кормление' }, { text: '🔔 Уведомления' }]
     ],
     resize_keyboard: true,
     is_persistent: true
@@ -162,12 +220,139 @@ bot.onText(/\/start(?:\s+(.+))?/, (msg, match) => {
 
   bot.sendMessage(
     chatId,
-    `Привет, ${userName}! 🍼\n\nКомната синхронизации: <code>${escapeHtml(familyId)}</code>\n<i>(Если у вас с женой в приложении вписан другой код комнаты, просто отправь мне команду: <code>/start ВАШ_КОД</code>)</i>`,
+    `Привет, ${userName}! 🍼\nМалышке уже <b>${getBabyAgeStr()}</b> — трекер обновлен под новый уровень!\n\nКомната: <code>${escapeHtml(familyId)}</code>`,
     { parse_mode: 'HTML', ...quickKeyboard }
   );
 });
 
-// Обработка нажатий на кнопки и текстовых сообщений (включая умный парсер)
+// === ОБРАБОТКА INLINE-КНОПОК (КОРМЛЕНИЕ И УХОД) ===
+bot.on('callback_query', (query) => {
+  const chatId = query.message.chat.id;
+  const messageId = query.message.message_id;
+  const data = query.data;
+  const rawUserName = query.from.first_name || 'Родитель';
+  const safeUserName = escapeHtml(rawUserName);
+  const { db } = getFamilyDb(chatId);
+  const todayStr = getTodayStr();
+  const time = getNowTime();
+  const nowMs = Date.now();
+
+  // 1. Выбор объема кормления: feed_90, feed_110, ..., feed_repeat
+  if (data.startsWith('feed_')) {
+    const val = data.replace('feed_', '');
+    const lastMl = db.feeds.length > 0 ? (Number(db.feeds[0].ml) || DEFAULT_FEED_ML) : DEFAULT_FEED_ML;
+    const ml = val === 'repeat' ? lastMl : parseInt(val, 10);
+
+    const { newFeed, totalTodayMl, todayCount } = recordFeeding(db, ml, 'Смесь', rawUserName);
+
+    bot.answerCallbackQuery(query.id, { text: `Записано: ${ml} мл! 🍼` });
+    bot.editMessageText(
+      `✅ <b>Кормление записано!</b>\n` +
+      `🕒 Время: <b>${newFeed.time}</b> | Объём: <b>${ml} мл</b>\n` +
+      `📈 За сегодня: <b>${totalTodayMl} / ${DAILY_TARGET_ML} мл</b> (${todayCount} кормл.)\n` +
+      `👤 Кто: ${safeUserName}\n\n` +
+      `🔔 <i>Напомню о следующем кормлении через 3 ч 15 мин.</i>`,
+      {
+        chat_id: chatId,
+        message_id: messageId,
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '➕ Докорм +10 мл', callback_data: 'feed_adjust_10' }, { text: '↩️ Отменить запись', callback_data: `undo_feed_${newFeed.id}` }]
+          ]
+        }
+      }
+    );
+  }
+
+  // 2. Докорм +10 мл к последнему кормлению
+  else if (data === 'feed_adjust_10') {
+    if (db.feeds.length === 0) return bot.answerCallbackQuery(query.id, { text: 'Нет записей' });
+    db.feeds[0].ml = (Number(db.feeds[0].ml) || 0) + 10;
+    db.feeds[0].editedAt = nowMs;
+    db.updatedAt = nowMs;
+    saveToCloud();
+
+    const todayFeeds = db.feeds.filter(f => f.date === todayStr);
+    const totalTodayMl = todayFeeds.reduce((s, f) => s + (Number(f.ml) || 0), 0);
+
+    bot.answerCallbackQuery(query.id, { text: `Обновлено: ${db.feeds[0].ml} мл` });
+    bot.editMessageText(
+      `✅ <b>Кормление обновлено (+10 мл)!</b>\n` +
+      `🕒 Время: <b>${db.feeds[0].time}</b> | Итого за раз: <b>${db.feeds[0].ml} мл</b>\n` +
+      `📈 За сегодня: <b>${totalTodayMl} / ${DAILY_TARGET_ML} мл</b>`,
+      { chat_id: chatId, message_id: messageId, parse_mode: 'HTML' }
+    );
+  }
+
+  // 3. Отмена конкретного кормления из inline-кнопки
+  else if (data.startsWith('undo_feed_')) {
+    const targetId = data.replace('undo_feed_', '');
+    const idx = db.feeds.findIndex(f => String(f.id) === targetId);
+    if (idx !== -1) {
+      const removed = db.feeds.splice(idx, 1)[0];
+      db.deletedIds.push(String(removed.id));
+      db.updatedAt = nowMs;
+      db.lastFeedingTime = db.feeds[0] ? (db.feeds[0].ts || db.feeds[0].id) : null;
+      saveToCloud();
+
+      bot.answerCallbackQuery(query.id, { text: 'Запись удалена 🗑' });
+      bot.editMessageText(
+        `🗑 <b>Запись кормления (${removed.ml} мл в ${removed.time}) отменена.</b>`,
+        { chat_id: chatId, message_id: messageId, parse_mode: 'HTML' }
+      );
+    } else {
+      bot.answerCallbackQuery(query.id, { text: 'Запись уже удалена' });
+    }
+  }
+
+  // 4. Блок Ухода: Витамин D3 / Газики / Животик
+  else if (data.startsWith('care_')) {
+    const careType = data.replace('care_', '');
+
+    if (careType === 'vitd') {
+      const alreadyGiven = db.careLogs.find(c => c.date === todayStr && c.type === 'vitd');
+      if (alreadyGiven) {
+        bot.answerCallbackQuery(query.id, { text: `⚠️ Уже давали сегодня в ${alreadyGiven.time}!`, show_alert: true });
+        return;
+      }
+      db.careLogs.unshift({ id: nowMs, ts: nowMs, date: todayStr, time, type: 'vitd', by: rawUserName });
+      saveToCloud();
+
+      bot.answerCallbackQuery(query.id, { text: 'Витамин D3 отмечен! ☀️' });
+      bot.editMessageText(
+        `☀️ <b>Витамин D3 дан в ${time}</b> (${safeUserName})\n<i>Повторный прием сегодня заблокирован во избежание передозировки.</i>`,
+        { chat_id: chatId, message_id: messageId, parse_mode: 'HTML' }
+      );
+    }
+
+    else if (careType === 'colic') {
+      db.careLogs.unshift({ id: nowMs, ts: nowMs, date: todayStr, time, type: 'colic', by: rawUserName });
+      saveToCloud();
+
+      const todayColic = db.careLogs.filter(c => c.date === todayStr && c.type === 'colic');
+      bot.answerCallbackQuery(query.id, { text: 'Капли от газиков записаны 💧' });
+      bot.editMessageText(
+        `💧 <b>Капли от газиков даны в ${time}</b> (${safeUserName})\n📊 Всего за сегодня: <b>${todayColic.length} раз(а)</b>`,
+        { chat_id: chatId, message_id: messageId, parse_mode: 'HTML' }
+      );
+    }
+
+    else if (careType === 'tummy') {
+      db.careLogs.unshift({ id: nowMs, ts: nowMs, date: todayStr, time, type: 'tummy', by: rawUserName });
+      saveToCloud();
+
+      const todayTummy = db.careLogs.filter(c => c.date === todayStr && c.type === 'tummy');
+      bot.answerCallbackQuery(query.id, { text: 'Выкладывание на животик записано 🐢' });
+      bot.editMessageText(
+        `🐢 <b>Выложили на животик в ${time}</b> (${safeUserName})\n📊 Подходов за сегодня: <b>${todayTummy.length}</b>`,
+        { chat_id: chatId, message_id: messageId, parse_mode: 'HTML' }
+      );
+    }
+  }
+});
+
+// === ОБРАБОТКА КНОПОК НИЖНЕГО МЕНЮ И ТЕКСТА ===
 bot.on('message', (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
@@ -180,40 +365,153 @@ bot.on('message', (msg) => {
   const time = getNowTime();
   const nowMs = Date.now();
   const todayStr = getTodayStr();
-
-  // === 1. ОБРАБОТКА КНОПОК ИЗ МЕНЮ И ТЕКСТОВЫЙ ПАРСЕР ===
   const lowerText = text.toLowerCase();
 
-  // Кнопка: ПОЕЛ
+  // 1. КНОПКА: ПОЕЛ -> ПОКАЗЫВАЕМ ВЫБОР ОБЪЕМА (90 - 150 МЛ)
   if (text === '🍼 Поел') {
-    const lastMl = db.feeds.length > 0 ? (Number(db.feeds[0].ml) || 90) : 90;
+    const lastFeed = db.feeds[0];
+    const lastMl = lastFeed ? (Number(lastFeed.ml) || DEFAULT_FEED_ML) : DEFAULT_FEED_ML;
+    const lastAgoStr = lastFeed
+      ? `${formatDuration(Math.floor((nowMs - (lastFeed.ts || lastFeed.id)) / 60000))} назад (${lastMl} мл)`
+      : 'нет записей';
 
-    const newFeed = {
+    const todayFeeds = db.feeds.filter(f => f.date === todayStr);
+    const totalTodayMl = todayFeeds.reduce((s, f) => s + (Number(f.ml) || 0), 0);
+
+    bot.sendMessage(
+      chatId,
+      `🍼 <b>Новое кормление (${getBabyAgeStr()})</b>\n` +
+      `🕒 Прошлое: ${lastAgoStr}\n` +
+      `📊 За сегодня: <b>${totalTodayMl} / ${DAILY_TARGET_ML} мл</b>\n\n` +
+      `<i>Выбери объём или напиши цифру в чат:</i>`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '90 мл', callback_data: 'feed_90' },
+              { text: '110 мл', callback_data: 'feed_110' },
+              { text: '120 мл', callback_data: 'feed_120' }
+            ],
+            [
+              { text: '130 мл', callback_data: 'feed_130' },
+              { text: '140 мл', callback_data: 'feed_140' },
+              { text: '150 мл', callback_data: 'feed_150' }
+            ],
+            [
+              { text: `🔁 Повторить (${lastMl} мл)`, callback_data: 'feed_repeat' }
+            ]
+          ]
+        }
+      }
+    );
+  }
+
+  // 2. КНОПКА: СОН / ВБ (СТАРТ/СТОП + КОНТРОЛЬ ОКНА БОДРСТВОВАНИЯ)
+  else if (text === '😴 Сон / ВБ' || text === '😴 Сон (Старт/Стоп)') {
+    if (!db.activeSleepStart) {
+      // Малышка уснула -> считаем, сколько длилось бодрствование
+      let wakeInfo = '';
+      if (db.lastWakeUpTime) {
+        const wakeMins = Math.max(1, Math.round((nowMs - db.lastWakeUpTime) / 60000));
+        wakeInfo = `\n⏱ Время бодрствования составило: <b>${formatDuration(wakeMins)}</b>`;
+      }
+
+      db.activeSleepStart = nowMs;
+      db.activeSleepTimeStr = time;
+      db.lastWakeUpTime = null;
+      db.wakeAlertSent = false;
+      saveToCloud();
+
+      bot.sendMessage(
+        chatId,
+        `🌙 <b>Малышка уснула в ${time}</b>${wakeInfo}\n<i>Когда проснется — нажми кнопку еще раз, запущу таймер бодрствования!</i>`,
+        { parse_mode: 'HTML', ...quickKeyboard }
+      );
+    } else {
+      // Малышка проснулась -> запускаем таймер ВБ (75 мин)
+      const durationMinutes = Math.max(1, Math.round((nowMs - db.activeSleepStart) / 60000));
+      const durationStr = formatDuration(durationMinutes);
+      const startedAt = db.activeSleepTimeStr;
+
+      db.sleeps.unshift({
+        id: nowMs,
+        startTime: startedAt,
+        endTime: time,
+        date: todayStr,
+        durationMinutes: durationMinutes,
+        durationText: durationStr,
+        ts: nowMs
+      });
+
+      db.activeSleepStart = null;
+      db.activeSleepTimeStr = null;
+      db.lastWakeUpTime = nowMs;
+      db.wakeAlertSent = false;
+      saveToCloud();
+
+      bot.sendMessage(
+        chatId,
+        `☀️ <b>Малышка проснулась в ${time}!</b>\n` +
+        `🛌 Проспала: <b>${durationStr}</b> (с ${startedAt} до ${time})\n\n` +
+        `👀 <i>Таймер окна бодрствования запущен — через 1 ч 15 мин напомню, что пора укладывать!</i>`,
+        { parse_mode: 'HTML', ...quickKeyboard }
+      );
+    }
+  }
+
+  // 3. КНОПКА: ВИТАМИН D / ЖИВОТИК
+  else if (text === '💊 Витамин D / Животик') {
+    const vitdToday = db.careLogs.find(c => c.date === todayStr && c.type === 'vitd');
+    const colicCount = db.careLogs.filter(c => c.date === todayStr && c.type === 'colic').length;
+    const tummyCount = db.careLogs.filter(c => c.date === todayStr && c.type === 'tummy').length;
+
+    const vitdStatus = vitdToday ? `✅ Дан в ${vitdToday.time}` : '❌ Ещё не давали';
+
+    bot.sendMessage(
+      chatId,
+      `💊 <b>Уход и животик за сегодня (${todayStr}):</b>\n\n` +
+      `☀️ <b>Витамин D3:</b> ${vitdStatus}\n` +
+      `💧 <b>Капли от газиков:</b> ${colicCount} раз(а)\n` +
+      `🐢 <b>На животике (Tummy Time):</b> ${tummyCount} раз(а)\n\n` +
+      `<i>Что отметить?</i>`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: vitdToday ? '☀️ Витамин D3 (уже дан ✅)' : '☀️ Дал Витамин D3', callback_data: 'care_vitd' }],
+            [{ text: '💧 Дал капли от газиков', callback_data: 'care_colic' }],
+            [{ text: '🐢 Выложил на животик', callback_data: 'care_tummy' }]
+          ]
+        }
+      }
+    );
+  }
+
+  // 4. КНОПКА: ПОДГУЗНИКИ
+  else if (text === '💧 Пописал' || text === '💩 Покакал') {
+    const diaperType = text === '💩 Покакал' ? '💩 Покак' : '💧 Попис';
+
+    db.diapers.unshift({
       id: nowMs,
       ts: nowMs,
       editedAt: nowMs,
       date: todayStr,
       time: time,
-      ml: lastMl,
-      type: 'Смесь',
-      by: rawUserName,
-      tags: []
-    };
-
-    db.feeds.unshift(newFeed);
+      type: diaperType,
+      by: rawUserName
+    });
     db.updatedAt = nowMs;
-    db.lastFeedingTime = nowMs;
-    db.feedingAlertSent = false;
     saveToCloud();
 
     bot.sendMessage(
       chatId,
-      `✅ <b>Кормление записано в приложение!</b>\n🕒 Время: <b>${time}</b>\n🍼 Объём: <b>${lastMl} мл</b> (Смесь)\n👤 Кто: ${safeUserName}\n\n🔔 <i>Через 3 часа напомню про следующее кормление и капли от коликов!</i>`,
+      `✅ <b>Подгузник отмечен:</b> ${diaperType} в <b>${time}</b>`,
       { parse_mode: 'HTML', ...quickKeyboard }
     );
   }
 
-  // Кнопка: ОТМЕНИТЬ ПОСЛЕДНЕЕ КОРМЛЕНИЕ
+  // 5. КНОПКА: ОТМЕНИТЬ ПОСЛЕДНЕЕ КОРМЛЕНИЕ
   else if (text === '↩️ Отменить кормление') {
     if (db.feeds.length === 0) {
       bot.sendMessage(chatId, '🤷‍♂️ В списке пока нет записей кормлений для удаления.', quickKeyboard);
@@ -235,109 +533,60 @@ bot.on('message', (msg) => {
     );
   }
 
-  // Кнопки: ПОДГУЗНИКИ
-  else if (text === '💧 Пописал' || text === '💩 Покакал') {
-    const diaperType = text === '💩 Покакал' ? '💩 Покак' : '💧 Попис';
-
-    db.diapers.unshift({
-      id: nowMs,
-      ts: nowMs,
-      editedAt: nowMs,
-      date: todayStr,
-      time: time,
-      type: diaperType,
-      by: rawUserName
-    });
-    db.updatedAt = nowMs;
-    saveToCloud();
-
-    bot.sendMessage(
-      chatId,
-      `✅ <b>Подгузник отмечен в дневнике:</b> ${diaperType} в <b>${time}</b>`,
-      { parse_mode: 'HTML', ...quickKeyboard }
-    );
-  }
-
-  // Кнопка: СОН (СТАРТ / СТОП)
-  else if (text === '😴 Сон (Старт/Стоп)') {
-    if (!db.activeSleepStart) {
-      db.activeSleepStart = nowMs;
-      db.activeSleepTimeStr = time;
-      saveToCloud();
-
-      bot.sendMessage(
-        chatId,
-        `🌙 <b>Малышка уснула в ${time}</b>\nТаймер сна запущен. Когда проснется — нажми кнопку еще раз!`,
-        { parse_mode: 'HTML', ...quickKeyboard }
-      );
-    } else {
-      const durationMinutes = Math.max(1, Math.round((nowMs - db.activeSleepStart) / 60000));
-      const hours = Math.floor(durationMinutes / 60);
-      const mins = durationMinutes % 60;
-      const durationStr = hours > 0 ? `${hours} ч ${mins} мин` : `${mins} мин`;
-      const startedAt = db.activeSleepTimeStr;
-
-      db.sleeps.unshift({
-        id: nowMs,
-        startTime: startedAt,
-        endTime: time,
-        date: todayStr,
-        durationMinutes: durationMinutes,
-        durationText: durationStr,
-        ts: nowMs
-      });
-
-      db.activeSleepStart = null;
-      db.activeSleepTimeStr = null;
-      saveToCloud();
-
-      bot.sendMessage(
-        chatId,
-        `☀️ <b>Малышка проснулась в ${time}!</b>\n🛌 Проспала: <b>${durationStr}</b> (с ${startedAt} до ${time})`,
-        { parse_mode: 'HTML', ...quickKeyboard }
-      );
-    }
-  }
-
-  // Кнопка: СВОДКА
+  // 6. КНОПКА: СВОДКА (РАСШИРЕННАЯ ПОД 1.5 МЕСЯЦА)
   else if (text === '📊 Сводка') {
     const todayFeeds = db.feeds.filter(f => f.date === todayStr);
     const totalMl = todayFeeds.reduce((s, f) => s + (Number(f.ml) || 0), 0);
     const todayDiapers = db.diapers.filter(d => d.date === todayStr);
+    const todaySleeps = db.sleeps.filter(s => s.date === todayStr);
+    const totalSleepMins = todaySleeps.reduce((s, item) => s + (Number(item.durationMinutes) || 0), 0);
 
-    const lastFeed = db.feeds[0] ? `${db.feeds[0].time} (${db.feeds[0].ml} мл)` : 'нет записей';
-    const lastDiaper = db.diapers[0] ? `${db.diapers[0].time} (${db.diapers[0].type})` : 'нет записей';
-    const sleepStatus = db.activeSleepStart
-      ? `😴 Сейчас спит (уснула в ${db.activeSleepTimeStr})`
-      : (db.sleeps[0] ? `Проснулась в ${db.sleeps[0].endTime} (спала ${db.sleeps[0].durationText})` : 'нет записей');
+    const vitdGiven = db.careLogs.find(c => c.date === todayStr && c.type === 'vitd');
+    const tummyCount = db.careLogs.filter(c => c.date === todayStr && c.type === 'tummy').length;
+
+    const lastFeed = db.feeds[0]
+      ? `${db.feeds[0].time} (${db.feeds[0].ml} мл — ${formatDuration(Math.floor((nowMs - (db.feeds[0].ts || db.feeds[0].id)) / 60000))} назад)`
+      : 'нет записей';
+
+    let sleepStatus = 'нет записей';
+    if (db.activeSleepStart) {
+      const sleepingNow = Math.floor((nowMs - db.activeSleepStart) / 60000);
+      sleepStatus = `😴 Спит (${formatDuration(sleepingNow)}, с ${db.activeSleepTimeStr})`;
+    } else if (db.lastWakeUpTime) {
+      const awakeNow = Math.floor((nowMs - db.lastWakeUpTime) / 60000);
+      sleepStatus = `👀 Бодрствует <b>${formatDuration(awakeNow)}</b> (норма ВБ: 60–90 мин)`;
+    } else if (db.sleeps[0]) {
+      sleepStatus = `Проснулась в ${db.sleeps[0].endTime} (спала ${db.sleeps[0].durationText})`;
+    }
 
     const summaryText =
-      `📊 <b>Сводка за сегодня (${todayStr}):</b>\n` +
+      `📊 <b>Сводка за сегодня (${todayStr})</b>\n` +
+      `👶 Возраст малышки: <b>${getBabyAgeStr()}</b>\n` +
       `🔗 Комната: <code>${escapeHtml(familyId)}</code>\n\n` +
-      `🍼 <b>Съедено за сегодня:</b> ${totalMl} мл (${todayFeeds.length} кормл.)\n` +
-      `🕒 <b>Последнее кормление:</b> ${lastFeed}\n` +
-      `🧷 <b>Подгузники за сегодня:</b> ${todayDiapers.length} шт. (посл: ${lastDiaper})\n` +
-      `🛌 <b>Сон:</b> ${sleepStatus}\n` +
+      `🍼 <b>Съедено:</b> ${totalMl} / ${DAILY_TARGET_ML} мл (${todayFeeds.length} кормл.)\n` +
+      `🕒 <b>Крайняя еда:</b> ${lastFeed}\n` +
+      `🛌 <b>Сон за день:</b> ${formatDuration(totalSleepMins)} | ${sleepStatus}\n` +
+      `🧷 <b>Подгузники:</b> ${todayDiapers.length} шт.\n` +
+      `💊 <b>Витамин D3:</b> ${vitdGiven ? `✅ (${vitdGiven.time})` : '❌ не дан'} | 🐢 <b>Животик:</b> ${tummyCount}x\n` +
       `🔔 <b>Уведомления:</b> ${db.notificationsEnabled ? 'Включены ✅' : 'Выключены 🔕'}`;
 
     bot.sendMessage(chatId, summaryText, { parse_mode: 'HTML', ...quickKeyboard });
   }
 
-  // Кнопка: ВКЛ/ВЫКЛ УВЕДОМЛЕНИЙ
-  else if (text === '🔔 Уведомления Вкл/Выкл') {
+  // 7. КНОПКА: ВКЛ/ВЫКЛ УВЕДОМЛЕНИЙ
+  else if (text === '🔔 Уведомления' || text === '🔔 Уведомления Вкл/Выкл') {
     db.notificationsEnabled = !db.notificationsEnabled;
     saveToCloud();
 
     const statusText = db.notificationsEnabled
-      ? '🔔 <b>Уведомления включены!</b> Ровно через 3 часа после еды напомню о следующем кормлении и каплях от коликов.'
+      ? '🔔 <b>Уведомления включены!</b>\n• Через <b>3ч 15м</b> после еды напомню про кормление.\n• Через <b>1ч 15м</b> бодрствования напомню укладывать спать.'
       : '🔕 <b>Уведомления выключены.</b> Не буду беспокоить пушами, пока не включишь обратно.';
 
     bot.sendMessage(chatId, statusText, { parse_mode: 'HTML', ...quickKeyboard });
   }
 
-  // === 2. УМНЫЙ ПАРСЕР СВОБОДНОГО ТЕКСТА (ГОЛОСА / ВВОДА) ===
+  // 8. УМНЫЙ ПАРСЕР СВОБОДНОГО ТЕКСТА (ГОЛОСА / ВВОДА)
   else {
-    // Проверка на подгузники по словам
     if (lowerText.includes('попис') || lowerText.includes('пописал')) {
       db.diapers.unshift({ id: nowMs, ts: nowMs, editedAt: nowMs, date: todayStr, time: time, type: '💧 Попис', by: rawUserName });
       db.updatedAt = nowMs;
@@ -354,47 +603,44 @@ bot.on('message', (msg) => {
       return;
     }
 
-    // Проверка на кормление (если есть цифры объема или слова поела/смесь)
+    if (lowerText.includes('витамин') || lowerText.includes('д3') || lowerText.includes('d3')) {
+      const alreadyGiven = db.careLogs.find(c => c.date === todayStr && c.type === 'vitd');
+      if (alreadyGiven) {
+        bot.sendMessage(chatId, `⚠️ <b>Витамин D3 сегодня уже давали</b> в ${alreadyGiven.time}!`, { parse_mode: 'HTML', ...quickKeyboard });
+        return;
+      }
+      db.careLogs.unshift({ id: nowMs, ts: nowMs, date: todayStr, time, type: 'vitd', by: rawUserName });
+      saveToCloud();
+      bot.sendMessage(chatId, `☀️ <b>Записал Витамин D3</b> в ${time} (${safeUserName})!`, { parse_mode: 'HTML', ...quickKeyboard });
+      return;
+    }
+
     const mlMatch = lowerText.match(/(\d+)\s*(?:мл)?/);
     if (lowerText.includes('поел') || lowerText.includes('смесь') || lowerText.includes('мл') || (mlMatch && !isNaN(mlMatch[1]) && Number(mlMatch[1]) > 15 && Number(mlMatch[1]) < 350)) {
-      const ml = mlMatch ? parseInt(mlMatch[1], 10) : (db.feeds.length > 0 ? (Number(db.feeds[0].ml) || 90) : 90);
-      
-      const newFeed = {
-        id: nowMs,
-        ts: nowMs,
-        editedAt: nowMs,
-        date: todayStr,
-        time: time,
-        ml: ml,
-        type: lowerText.includes('гв') ? 'ГВ / Молоко' : 'Смесь',
-        by: rawUserName,
-        tags: []
-      };
+      const ml = mlMatch ? parseInt(mlMatch[1], 10) : (db.feeds.length > 0 ? (Number(db.feeds[0].ml) || DEFAULT_FEED_ML) : DEFAULT_FEED_ML);
+      const feedType = lowerText.includes('гв') ? 'ГВ / Молоко' : 'Смесь';
 
-      db.feeds.unshift(newFeed);
-      db.updatedAt = nowMs;
-      db.lastFeedingTime = nowMs;
-      db.feedingAlertSent = false;
-      saveToCloud();
+      const { totalTodayMl, todayCount } = recordFeeding(db, ml, feedType, rawUserName);
 
       bot.sendMessage(
         chatId,
-        `✅ <b>Распознано кормление:</b> ${ml} мл (${time})\n👤 Записал (${safeUserName})!`,
+        `✅ <b>Распознано кормление:</b> ${ml} мл (${time})\n` +
+        `📈 За сегодня: <b>${totalTodayMl} / ${DAILY_TARGET_ML} мл</b> (${todayCount} кормл.)\n` +
+        `👤 Записал (${safeUserName})!`,
         { parse_mode: 'HTML', ...quickKeyboard }
       );
       return;
     }
 
-    // Если бот вообще ничего не понял из текста
     bot.sendMessage(
       chatId,
-      `🤖 Я не совсем понял команду. Воспользуйся кнопками внизу или напиши, например: <i>«120 мл»</i> или <i>«пописал»</i>.`,
+      `🤖 Нажми кнопку внизу или напиши объём (например: <i>«130 мл»</i>, <i>«пописал»</i>, <i>«витамин д3»</i>).`,
       { parse_mode: 'HTML', ...quickKeyboard }
     );
   }
 });
 
-// === ФОНОВЫЙ ТАЙМЕР (ЧЕРЕЗ 3 ЧАСА) ===
+// === ФОНОВЫЙ ТАЙМЕР УМНЫХ УВЕДОМЛЕНИЙ (ЕДА + ОКНО БОДРСТВОВАНИЯ) ===
 setInterval(() => {
   const nowMs = Date.now();
 
@@ -402,20 +648,34 @@ setInterval(() => {
     const { db } = getFamilyDb(chatId);
     if (!db.notificationsEnabled) return;
 
+    // 1. Напоминание о кормлении через 3ч 15м (195 мин)
     const lastFeedMs = db.lastFeedingTime || (db.feeds[0] && (db.feeds[0].ts || db.feeds[0].id));
     if (lastFeedMs && !db.feedingAlertSent && !db.activeSleepStart) {
       const minutesPassed = Math.floor((nowMs - lastFeedMs) / 60000);
-      if (minutesPassed >= 180 && minutesPassed < 360) {
+      if (minutesPassed >= FEED_INTERVAL_MIN && minutesPassed < 360) {
         db.feedingAlertSent = true;
         saveToCloud();
 
-        const hours = Math.floor(minutesPassed / 60);
-        const mins = minutesPassed % 60;
-        const timePassedStr = mins > 0 ? `${hours} ч ${mins} мин` : `${hours} ч`;
+        bot.sendMessage(
+          chatId,
+          `🍼 <b>Пора готовить смесь!</b> С прошлого кормления прошло <b>${formatDuration(minutesPassed)}</b>.\n\n` +
+          `<i>Когда покормишь, нажми «🍼 Поел» и выбери объём.</i>`,
+          { parse_mode: 'HTML', ...quickKeyboard }
+        );
+      }
+    }
+
+    // 2. Контроль перегула: ВБ достигло 1ч 15м (75 мин)
+    if (db.lastWakeUpTime && !db.activeSleepStart && !db.wakeAlertSent) {
+      const awakeMinutes = Math.floor((nowMs - db.lastWakeUpTime) / 60000);
+      if (awakeMinutes >= WAKE_WINDOW_LIMIT_MIN && awakeMinutes < 180) {
+        db.wakeAlertSent = true;
+        saveToCloud();
 
         bot.sendMessage(
           chatId,
-          `🍼 <b>Пора готовить смесь!</b> С последнего кормления прошло <b>${timePassedStr}</b>.\n\n💧 <b>Не забудь добавить капли от коликов в смесь!</b>\n\n<i>(Когда покормишь, нажми кнопку «🍼 Поел» внизу)</i>`,
+          `👀 <b>Внимание на окно бодрствования!</b>\n` +
+          `Малышка не спит уже <b>${formatDuration(awakeMinutes)}</b>. Для 1.5 месяцев пора ловить признаки усталости и укладывать, чтобы не словить перегул 😴`,
           { parse_mode: 'HTML', ...quickKeyboard }
         );
       }
@@ -423,48 +683,39 @@ setInterval(() => {
   });
 }, 60 * 1000);
 
-// === ФОНОВАЯ ПРОВЕРКА ИНДИВИДУАЛЬНЫХ НАПОМИНАНИЙ ИЗ MINI APP (ЗА 5 МИНУТ) ===
+// === ФОНОВАЯ ПРОВЕРКА НАПОМИНАНИЙ ИЗ MINI APP ===
 setInterval(() => {
   const now = new Date();
-  
   reminders = reminders.filter(reminder => {
     if (now >= new Date(reminder.remindTime)) {
       bot.sendMessage(reminder.chatId, reminder.text, { parse_mode: 'HTML', ...quickKeyboard })
          .catch(err => console.error('Ошибка отправки напоминания:', err));
-      return false; 
+      return false;
     }
     return true;
   });
 }, 60 * 1000);
 
 // === API ДЛЯ ПИНГА И MINI APP ===
-
 app.get('/', (req, res) => {
-  res.send('Сервер трекера малышки работает отлично! 🍼');
+  res.send(`Сервер трекера малышки (${getBabyAgeStr()}) работает отлично! 🍼`);
 });
 
 app.get('/ping', (req, res) => {
   res.send('Alive!');
 });
 
-// Эндпоинт для приема напоминаний из Mini App (за 5 минут до события)
 app.post('/api/set-reminder', (req, res) => {
   const { chatId, timestamp, text } = req.body;
-  
   if (!chatId || !timestamp) {
     return res.status(400).json({ error: 'Missing chatId or timestamp' });
   }
-
-  // Время напоминания: ровно за 5 минут до указанного времени кормления
-  const remindTime = new Date(timestamp - 5 * 60 * 1000); 
-
-  reminders.push({ 
-    chatId: Number(chatId), 
-    remindTime, 
-    text: text || '⚠️ Внимание! Через 5 минут запланировано кормление малышки! 🍼' 
+  const remindTime = new Date(timestamp - 5 * 60 * 1000);
+  reminders.push({
+    chatId: Number(chatId),
+    remindTime,
+    text: text || '⚠️ Внимание! Через 5 минут запланировано кормление малышки! 🍼'
   });
-  
-  console.log(`⏰ Напоминание установлено на ${remindTime.toLocaleTimeString()} для чата ${chatId}`);
   res.json({ success: true, remindTime });
 });
 
@@ -503,6 +754,23 @@ app.post('/api/save/:familyId', (req, res) => {
 
   saveToCloud();
   res.json({ success: true });
+});
+
+// Защита от зависшего polling при перезапусках (409 Conflict)
+bot.on('polling_error', (err) => {
+  if (!String(err.message).includes('409')) {
+    console.error('Polling error:', err.message);
+  }
+});
+
+process.on('SIGINT', async () => {
+  await bot.stopPolling();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  await bot.stopPolling();
+  process.exit(0);
 });
 
 const PORT = process.env.PORT || 3000;
